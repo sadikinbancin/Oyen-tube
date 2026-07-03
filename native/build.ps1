@@ -21,9 +21,9 @@ foreach ($dir in $frontendDirs) {
         $tscOut = npx tsc --noEmit 2>&1
         $tscExit = $LASTEXITCODE
         if ($tscExit -ne 0) {
-            Write-Host "  TypeScript compilation FAILED — fix errors before building NSIS" -ForegroundColor Red
+            Write-Host "  TypeScript compilation FAILED - fix errors before building NSIS" -ForegroundColor Red
             Write-Host $tscOut
-            throw "TypeScript compilation failed — fix all errors before building NSIS installer"
+            throw "TypeScript compilation failed - fix all errors before building NSIS installer"
         }
 
         npm run build
@@ -52,20 +52,31 @@ if (Test-Path $specFile) {
             Write-Host "  Patched fastmcp metadata fallback" -ForegroundColor Yellow
         }
     }
-    uv run pyinstaller "$specFile" --clean --noconfirm
+    uv run python -m PyInstaller "$specFile" --clean --noconfirm
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
     Pop-Location
 } else {
-    Write-Host "  WARNING: spec file not found at $specFile — using existing backend exe if present" -ForegroundColor DarkYellow
+    Write-Host "  WARNING: spec file not found at $specFile - using existing backend exe if present" -ForegroundColor DarkYellow
 }
 
 # Step 3: Embed in Tauri resources (+ dev fallback)
 Write-Host "-> [3/4] Embedding backend..." -ForegroundColor Yellow
-$src = "$Root\dist\${RepoName}-backend.exe"
-if (-not (Test-Path $src)) { throw "Backend exe not found at $src — PyInstaller step failed" }
-Copy-Item $src "$ResourceDir\${RepoName}-backend.exe" -Force
-Copy-Item $src "$DevDir\${RepoName}-backend-$Triple.exe" -Force
-Write-Host "  Backend exe: $((Get-Item $src).Length / 1MB) MB" -ForegroundColor Green
+$backend_src = Join-Path $Root "dist\${RepoName}-backend.exe"
+if (-not (Test-Path $backend_src)) { throw "Backend exe not found at $backend_src - PyInstaller step failed" }
+$dest_resource = Join-Path $ResourceDir "${RepoName}-backend.exe"
+$dest_dev = Join-Path $DevDir "${RepoName}-backend-${Triple}.exe"
+Copy-Item -Path $backend_src -Destination $dest_resource -Force
+Copy-Item -Path $backend_src -Destination $dest_dev -Force
+Write-Host "  Backend exe: $((Get-Item $backend_src).Length / 1MB) MB"
+
+# Bundle .env.example (NOT .env — dev .env has personal API keys)
+$envExample = "$Root\.env.example"
+if (Test-Path $envExample) {
+    Copy-Item $envExample "$ResourceDir\.env.example" -Force
+    Write-Host "  Bundled .env.example ✓" -ForegroundColor Green
+} else {
+    Write-Host "  WARNING: .env.example not found at repo root" -ForegroundColor DarkYellow
+}
 
 # Step 4: Single NSIS installer
 Write-Host "-> [4/4] Tauri NSIS bundle..." -ForegroundColor Yellow
@@ -85,3 +96,4 @@ if (Test-Path $strayExe) { Remove-Item $strayExe -Force; Write-Host "  Cleaned s
 
 Write-Host "=== Build complete ===" -ForegroundColor Green
 Write-Host "Ship: $nsisDir\*.exe"
+

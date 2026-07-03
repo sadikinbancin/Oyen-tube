@@ -68,6 +68,11 @@ Each portmanteau tool handles multiple related operations through an 'operation'
         # Discover and register all tools
         discover_tools()
 
+        # Register ALL tools from the _tools dict into FastMCP
+        from blender_mcp.tools import register_tools
+
+        register_tools(app)
+
         # Handlers are registered via discover_tools() and specific registration
         # logic within tool modules.
         from blender_mcp.tools import scene_tools
@@ -86,6 +91,9 @@ Each portmanteau tool handles multiple related operations through an 'operation'
 
         # Register resources
         _register_resources(app)
+
+        # Register skills provider for blender-expert skill
+        _register_skills_provider(app)
 
         # Fleet Discovery API + Blender session bridge
         _register_fleet_api(app)
@@ -330,7 +338,23 @@ def _register_fleet_api(app):
 
     @app.custom_route("/api/v1/health", methods=["GET"])
     async def health_check(request: Request):
-        return JSONResponse({"status": "ok", "server": "blender-mcp", "version": __version__})
+        import time
+
+        _start = getattr(app, "_start_time", None)
+        if _start is None:
+            _start = time.time()
+            app._start_time = _start
+        uptime = time.time() - _start
+        tool_list = list(app._tool_manager.tools.keys()) if hasattr(app, "_tool_manager") and app._tool_manager else []
+        return JSONResponse(
+            {
+                "status": "ok",
+                "server": "blender-mcp",
+                "version": __version__,
+                "uptime_seconds": int(uptime),
+                "tool_count": len(tool_list),
+            }
+        )
 
     @app.custom_route("/metrics", methods=["GET"])
     async def prometheus_metrics(request: Request):
@@ -339,6 +363,24 @@ def _register_fleet_api(app):
         from blender_mcp.utils.telemetry import metrics_content_type, render_metrics
 
         return Response(content=render_metrics(), media_type=metrics_content_type())
+
+
+def _register_skills_provider(app):
+    """Register SkillsDirectoryProvider so /api/skills serves our skill/* content."""
+    from pathlib import Path as _Path
+
+    from fastmcp.server.providers.skills import SkillsDirectoryProvider
+
+    skills_dir = _Path(__file__).resolve().parent.parent.parent / "skills"
+    if skills_dir.is_dir():
+        try:
+            provider = SkillsDirectoryProvider(roots=str(skills_dir))
+            app.add_provider(provider)
+            logger.info("Skills provider registered from %s", skills_dir)
+        except Exception as e:
+            logger.warning("Failed to register skills provider: %s", e)
+    else:
+        logger.info("No skills directory at %s", skills_dir)
 
 
 def _register_resources(app):

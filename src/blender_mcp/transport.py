@@ -87,9 +87,20 @@ Examples:
   # HTTP mode (web apps)
   python -m {server_name.replace("-", "_")} --http --port 10849
 
+  # Dual mode (Tauri wrapper)
+  python -m {server_name.replace("-", "_")} --mode dual --port 10849
+
   # Via environment
   MCP_TRANSPORT=http MCP_PORT=10849 python -m {server_name.replace("-", "_")}
 """,
+    )
+
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["stdio", "http", "dual", "sse"],
+        default=None,
+        help="Transport mode: stdio, http, dual (http+stdio), or sse. Overrides --http/--stdio/--sse.",
     )
 
     transport_group = parser.add_mutually_exclusive_group()
@@ -110,7 +121,7 @@ def resolve_transport(args: argparse.Namespace) -> TransportType:
     Resolve transport type from CLI args with environment fallback.
 
     Priority:
-        1. CLI arguments (--http, --stdio, --sse)
+        1. CLI arguments (--mode, --http, --stdio, --sse)
         2. Environment variable (MCP_TRANSPORT)
         3. Default (stdio)
 
@@ -120,7 +131,10 @@ def resolve_transport(args: argparse.Namespace) -> TransportType:
     Returns:
         Transport type string.
     """
-    if args.http:
+    # --mode flag takes highest priority
+    if args.mode and args.mode != "dual":
+        return args.mode  # type: ignore
+    if args.http or (args.mode == "dual"):
         return "http"
     elif args.sse:
         logger.warning(
@@ -226,7 +240,14 @@ async def run_server_async(mcp_app, args: argparse.Namespace | None = None, serv
             path = config["path"]
             endpoint = f"http://{host}:{port}{path}"
             logger.info(f"Running in HTTP Streamable mode: {endpoint}")
-            await mcp_app.run_http_async(host=host, port=port, path=path)
+
+            import uvicorn
+
+            from blender_mcp.server import asgi_app
+
+            uvicorn_config = uvicorn.Config(asgi_app, host=host, port=port, log_level="info", loop="asyncio")
+            server = uvicorn.Server(uvicorn_config)
+            await server.serve()
 
         elif transport == "sse":
             host = config["host"]

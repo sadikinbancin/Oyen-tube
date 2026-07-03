@@ -66,7 +66,7 @@ export default function Settings() {
 
   useEffect(() => {
     fetchModels();
-  }, []);
+  }, [llmConfig.provider]);
 
   const loadConfig = async () => {
     try {
@@ -129,6 +129,14 @@ export default function Settings() {
       setHasChanges(true);
     } catch (err) {
       console.error("Failed to load model:", err);
+    }
+  };
+
+  const handleOllamaModelSelect = (modelName: string) => {
+    if (modelName) {
+      loadOllamaModel(modelName);
+    } else {
+      updateLLMField("selected_model", "");
     }
   };
 
@@ -310,6 +318,25 @@ export default function Settings() {
                     </p>
                   </div>
 
+                  <div className="mb-4">
+                    <label htmlFor="selected-model-select" className="text-sm font-semibold mb-1.5 block text-foreground">
+                      Active Model (Selected)
+                    </label>
+                    <select
+                      id="selected-model-select"
+                      value={llmConfig.selected_model}
+                      onChange={(e) => handleOllamaModelSelect(e.target.value)}
+                      className="w-full bg-background border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                    >
+                      <option value="">-- No model selected --</option>
+                      {availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {providerError && (
                     <div className="flex items-center gap-2 text-red-500 text-sm">
                       <AlertCircle className="w-4 h-4" />
@@ -398,6 +425,25 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground mt-1">
                       Default: http://localhost:1234
                     </p>
+                  </div>
+
+                  <div className="mb-4">
+                    <label htmlFor="selected-model-select-lm" className="text-sm font-semibold mb-1.5 block text-foreground">
+                      Active Model (Selected)
+                    </label>
+                    <select
+                      id="selected-model-select-lm"
+                      value={llmConfig.selected_model}
+                      onChange={(e) => updateLLMField("selected_model", e.target.value)}
+                      className="w-full bg-background border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                    >
+                      <option value="">-- No model selected --</option>
+                      {availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {providerError && (

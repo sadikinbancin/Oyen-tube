@@ -65,8 +65,7 @@ def update_file(file_path: Path) -> bool:
 
         return True
 
-    except Exception as e:
-        print(f"Error updating {file_path}: {e}")
+    except Exception:
         return False
 
 
@@ -80,10 +79,8 @@ def main():
             if file.endswith(".py") and file != "__init__.py" and file != "compat.py":
                 file_path = Path(root) / file
                 if update_file(file_path):
-                    print(f"Updated: {file_path}")
                     updated += 1
 
-    print(f"\n✅ Updated {updated} files")
 
 
 if __name__ == "__main__":

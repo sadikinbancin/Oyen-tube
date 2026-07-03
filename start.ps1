@@ -94,7 +94,7 @@ $FrontendDir = Join-Path $RepoRoot "webapp\frontend"
 if (Test-Path $FrontendDir) {
     Set-Location $FrontendDir
     if (-not (Test-Path "node_modules")) { npm install }
-    Start-Process npm -ArgumentList "run", "dev", "--", "--port", "$WebPort", "--host" -WorkingDirectory $FrontendDir
+    Start-Process cmd.exe -ArgumentList "/c npm run dev -- --port $WebPort --host" -WorkingDirectory $FrontendDir
 }
 
 Write-Host "Startup Complete." -ForegroundColor Green

@@ -6,6 +6,13 @@ export default {
     ],
     theme: {
         extend: {
+            fontFamily: {
+                sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+                mono: ["JetBrains Mono", "Consolas", "Courier New", "monospace"],
+            },
+            fontSize: {
+                base: ["0.9375rem", { lineHeight: "1.6" }],
+            },
             colors: {
                 background: "hsl(var(--background))",
                 foreground: "hsl(var(--foreground))",
@@ -26,7 +33,6 @@ export default {
                 border: "hsl(var(--border))",
                 input: "hsl(var(--input))",
                 ring: "hsl(var(--ring))",
-                radius: "hsl(var(--radius))",
             },
         },
     },

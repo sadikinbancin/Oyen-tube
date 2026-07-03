@@ -1,48 +1,30 @@
-import { Activity, Clock, RefreshCw, Server, Shield, Terminal } from "lucide-react";
+import { Activity, Clock, Cpu, RefreshCw, Server, Wifi } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { getLogs, getStatus } from "../api/mcp";
+import { getStatus } from "../api/mcp";
 
 export default function Status() {
-  const [logs, setLogs] = useState<Array<{ time: string; level: string; msg: string }>>([]);
   const [status, setStatus] = useState<{
     operational: boolean;
-    memory: string;
-    latency: number;
     version: string;
-  }>({
-    operational: false,
-    memory: "-",
-    latency: 0,
-    version: "-",
-  });
+  }>({ operational: false, version: "-" });
   const [loading, setLoading] = useState(false);
+  const [pingMs, setPingMs] = useState<number | null>(null);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
+    const start = performance.now();
     try {
-      const [statusRes, logsRes] = await Promise.all([getStatus(), getLogs(50)]);
-
-      if (statusRes.success && statusRes.data) {
+      const res = await getStatus();
+      const elapsed = Math.round(performance.now() - start);
+      setPingMs(elapsed);
+      if (res.success && res.data) {
         setStatus({
-          operational: statusRes.data.blender,
-          memory: "2.4 GB", // Would come from backend
-          latency: 12, // Would come from backend
-          version: statusRes.data.version || "1.0.0",
+          operational: res.data.blender ?? true,
+          version: res.data.version || "1.0.0",
         });
       }
-
-      // Transform logs if available
-      if (logsRes.success && logsRes.data?.logs) {
-        setLogs(
-          logsRes.data.logs.map((log) => ({
-            time: new Date(log.timestamp).toLocaleTimeString(),
-            level: log.level,
-            msg: log.message,
-          })),
-        );
-      }
-    } catch (err) {
-      console.error("Failed to load status:", err);
+    } catch {
+      setPingMs(null);
     } finally {
       setLoading(false);
     }
@@ -50,7 +32,7 @@ export default function Status() {
 
   useEffect(() => {
     loadStatus();
-    const interval = setInterval(loadStatus, 5000);
+    const interval = setInterval(loadStatus, 10000);
     return () => clearInterval(interval);
   }, [loadStatus]);
 
@@ -59,7 +41,7 @@ export default function Status() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-1">System Status</h1>
-          <p className="text-muted-foreground">Monitor server health and logs.</p>
+          <p className="text-muted-foreground">Server health and connectivity.</p>
         </div>
         <button
           type="button"
@@ -72,15 +54,11 @@ export default function Status() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="p-4 bg-card border border-border rounded-lg shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-3 mb-2">
-            <div
-              className={`p-2 rounded-md ${status.operational ? "bg-green-500/10" : "bg-red-500/10"}`}
-            >
-              <Activity
-                className={`w-5 h-5 ${status.operational ? "text-green-500" : "text-red-500"}`}
-              />
+            <div className={`p-2 rounded-md ${status.operational ? "bg-green-500/10" : "bg-red-500/10"}`}>
+              <Activity className={`w-5 h-5 ${status.operational ? "text-green-500" : "text-red-500"}`} />
             </div>
             <span className="font-medium text-muted-foreground">Status</span>
           </div>
@@ -90,89 +68,51 @@ export default function Status() {
           </div>
         </div>
 
-        <div className="p-4 bg-card border border-border rounded-lg shadow-sm">
+        <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-500/10 rounded-md">
               <Server className="w-5 h-5 text-blue-500" />
             </div>
-            <span className="font-medium text-muted-foreground">Memory</span>
+            <span className="font-medium text-muted-foreground">Server</span>
           </div>
-          <div className="text-2xl font-bold">{status.memory}</div>
-          <div className="text-xs text-muted-foreground mt-1">/ 64 GB Total</div>
+          <div className="text-2xl font-bold">blender-mcp</div>
+          <div className="text-xs text-muted-foreground mt-1">v{status.version}</div>
         </div>
 
-        <div className="p-4 bg-card border border-border rounded-lg shadow-sm">
+        <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-purple-500/10 rounded-md">
               <Clock className="w-5 h-5 text-purple-500" />
             </div>
             <span className="font-medium text-muted-foreground">Latency</span>
           </div>
-          <div className="text-2xl font-bold">{status.latency} ms</div>
-          <div className="text-xs text-muted-foreground mt-1">Localhost</div>
+          <div className="text-2xl font-bold">{pingMs !== null ? `${pingMs} ms` : "---"}</div>
+          <div className="text-xs text-muted-foreground mt-1">API round-trip</div>
         </div>
 
-        <div className="p-4 bg-card border border-border rounded-lg shadow-sm">
+        <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-orange-500/10 rounded-md">
-              <Shield className="w-5 h-5 text-orange-500" />
+              <Wifi className="w-5 h-5 text-orange-500" />
             </div>
-            <span className="font-medium text-muted-foreground">Version</span>
+            <span className="font-medium text-muted-foreground">Blender</span>
           </div>
-          <div className="text-2xl font-bold">v{status.version}</div>
+          <div className={`text-2xl font-bold ${status.operational ? "text-green-500" : "text-yellow-500"}`}>
+            {status.operational ? "Connected" : "Disconnected"}
+          </div>
           <div className="text-xs text-muted-foreground mt-1">Blender 4.2+</div>
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden flex flex-col h-[400px]">
-        <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-muted-foreground" />
-            <h3 className="font-medium">System Logs</h3>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="text-xs px-2 py-1 bg-background border border-border rounded hover:bg-accent"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              className="text-xs px-2 py-1 bg-background border border-border rounded hover:bg-accent"
-            >
-              Download
-            </button>
-          </div>
+      <div className="mt-8 p-6 bg-card border border-border rounded-lg">
+        <div className="flex items-center gap-2 mb-1">
+          <Cpu className="w-4 h-4 text-muted-foreground" />
+          <h3 className="font-medium">Diagnostics</h3>
         </div>
-        <div className="flex-1 p-4 overflow-y-auto font-mono text-sm space-y-2 bg-[#0d1117]">
-          {logs.map((log, i) => (
-            <div key={`${log.time}-${log.level}-${i}`} className="flex gap-3">
-              <span className="text-muted-foreground opacity-50 shrink-0 select-none">
-                {log.time}
-              </span>
-              <span
-                className={`shrink-0 w-12 font-bold ${
-                  log.level === "INFO"
-                    ? "text-blue-400"
-                    : log.level === "WARN"
-                      ? "text-yellow-400"
-                      : log.level === "ERROR"
-                        ? "text-red-400"
-                        : "text-gray-400"
-                }`}
-              >
-                {log.level}
-              </span>
-              <span className="text-gray-300 break-all">{log.msg}</span>
-            </div>
-          ))}
-          <div className="flex gap-3 animate-pulse">
-            <span className="text-muted-foreground opacity-50 shrink-0">10:44:05</span>
-            <span className="shrink-0 w-12 font-bold text-gray-500">...</span>
-            <span className="text-gray-500">Listening for events...</span>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground mt-2">
+          For detailed server logs with filtering, search, and export, visit the{" "}
+          <a href="/logs" className="text-primary hover:underline">Logs page</a>.
+        </p>
       </div>
     </div>
   );

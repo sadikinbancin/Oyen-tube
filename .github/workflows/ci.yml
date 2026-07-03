@@ -2,13 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    tags: ["v*"]
   workflow_dispatch:
-
-env:
-  PYTHON_VERSION: "3.12"
 
 jobs:
   lint:

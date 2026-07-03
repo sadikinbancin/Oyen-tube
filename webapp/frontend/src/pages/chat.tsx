@@ -2,6 +2,18 @@ import { Bot, MessageSquare, Paperclip, Send, Sparkles, User } from "lucide-reac
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sendChatMessage } from "../api/mcp";
 
+const SYSTEM_CONTEXT = `You are a Blender expert assistant. You have access to the full blender-mcp toolset:
+
+Core tools: blender_status, scene_get_hierarchy, construct_object (natural-language 3D creation), blender_mesh, blender_materials, blender_lighting, blender_render, blender_animation, blender_export, blender_modifiers, blender_rigging, blender_geometry_nodes, blender_grease_pencil, blender_logs, generate_blender_script (Ollama), config_get, manage_blender_addons.
+
+Available workflows:
+- Modeling: construct_object -> blender_materials -> blender_lighting -> blender_render
+- Animation: blender_rigging -> blender_animation -> blender_render
+- Export: optimize_3d_scene -> blender_export
+- AI generation: construct_object or agentic_blender_workflow
+
+Respond conversationally and suggest specific tools when the user asks about Blender tasks.`;
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -46,7 +58,8 @@ export default function Chat() {
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(userMessage.content);
+      const messageWithContext = `${SYSTEM_CONTEXT}\n\nUser: ${userMessage.content}`;
+      const response = await sendChatMessage(messageWithContext);
       if (response.success && response.data) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -59,7 +72,7 @@ export default function Chat() {
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "Error: Failed to get response",
+          content: "I'm having trouble connecting to the AI backend. The tools in the sidebar are still available for direct use.",
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
@@ -69,7 +82,7 @@ export default function Chat() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `Error: ${errorMsg}`,
+        content: `Connection issue: ${errorMsg}. Try using the sidebar tools directly.`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);

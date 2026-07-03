@@ -1,7 +1,6 @@
 """Configuration settings for the Blender MCP server."""
 
 import os
-import sys
 from pathlib import Path
 
 from blender_mcp.compat import *
@@ -61,10 +60,6 @@ def validate_config(config: dict) -> None:
 
 # Log the Blender executable being used - use stderr to avoid Claude Desktop JSON parsing issues
 if not validate_blender_executable():
-    print(f"WARNING: Blender executable not found at: {BLENDER_EXECUTABLE}", file=sys.stderr)
-    print(
-        "Please set the BLENDER_EXECUTABLE environment variable to the correct path.",
-        file=sys.stderr,
-    )
+    pass
 else:
-    print(f"Using Blender executable: {BLENDER_EXECUTABLE}", file=sys.stderr)
+    pass

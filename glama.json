@@ -4,10 +4,10 @@
     "sandraschi"
   ],
   "name": "blender-mcp",
-  "description": "Professional MCP server built with FastMCP 2.14.3+. Part of the sandraschi SOTA 2026 fleet.",
+  "description": "Professional MCP server built with FastMCP 3.4.2. Part of the sandraschi SOTA 2026 fleet.",
   "type": "mcp_server",
   "status": "production",
-  "framework": "FastMCP 2.14.3+",
+  "framework": "FastMCP 3.4.2",
   "transport": [
     "stdio",
     "http"

@@ -5,19 +5,48 @@
  * Base URL: /mcp (proxied to backend port, e.g. 10849)
  */
 
-const API_BASE = "/mcp";
+/** In dev (Vite): `/mcp` is proxied to backend. In prod (Tauri): direct URL. */
+const API_BASE = import.meta.env.DEV ? "/mcp" : "http://127.0.0.1:10849";
+
+interface HealthPayload {
+  status: string;
+  server: string;
+  version: string;
+  uptime_seconds: number;
+  tool_count: number;
+}
+
+interface DiagnosticsPayload {
+  server: { tool_count: number };
+  system: { cpu_percent: number; memory_percent: number };
+  blender: { connected: boolean };
+}
 
 /**
  * Check if backend is reachable (does not use tool bridge).
  * Use to show a clear error when proxy or server is wrong.
  */
-export async function getBackendHealth(): Promise<{ ok: boolean; error?: string }> {
+export async function getBackendHealth(): Promise<{ ok: boolean; error?: string; data?: HealthPayload }> {
   try {
     const r = await fetch(`${API_BASE}/api/v1/health`);
     if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
-    return { ok: true };
+    const data = await r.json() as HealthPayload;
+    return { ok: true, data };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+/**
+ * Get full diagnostics from the backend (system info, tool list, etc.)
+ */
+export async function getDiagnostics(): Promise<DiagnosticsPayload | null> {
+  try {
+    const r = await fetch(`${API_BASE}/api/v1/diagnostics`);
+    if (!r.ok) return null;
+    return (await r.json()) as DiagnosticsPayload;
+  } catch {
+    return null;
   }
 }
 
@@ -143,7 +172,7 @@ export async function applyMaterial(
 }
 
 /**
- * Get system logs
+ * Get system logs via MCP blender_logs tool
  */
 export async function getLogs(limit = 50): Promise<
   MCPResponse<{
@@ -154,7 +183,45 @@ export async function getLogs(limit = 50): Promise<
     }>;
   }>
 > {
-  return callTool("blender_status", { operation: "status", include_system_info: true, limit });
+  return callTool("blender_logs", { operation: "view", limit });
+}
+
+/**
+ * Get logs via REST API (richer filtering)
+ */
+export async function getLogsREST(params: {
+  level?: string;
+  module?: string;
+  search?: string;
+  since_minutes?: number;
+  limit?: number;
+}): Promise<
+  MCPResponse<{
+    logs: Array<{
+      timestamp: string;
+      level: string;
+      name: string;
+      function: string;
+      line: number;
+      message: string;
+    }>;
+    count: number;
+  }>
+> {
+  const qs = new URLSearchParams();
+  if (params.level) qs.set("level", params.level);
+  if (params.module) qs.set("module", params.module);
+  if (params.search) qs.set("search", params.search);
+  if (params.since_minutes !== undefined) qs.set("since_minutes", String(params.since_minutes));
+  if (params.limit !== undefined) qs.set("limit", String(params.limit));
+  const base = import.meta.env.DEV ? "/mcp" : "http://127.0.0.1:10849";
+  try {
+    const r = await fetch(`${base}/api/v1/logs?${qs}`);
+    if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+    return (await r.json()) as MCPResponse<{ logs: []; count: number }>;
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Network error" };
+  }
 }
 
 /**

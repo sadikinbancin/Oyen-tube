@@ -59,7 +59,7 @@ async def main() -> int:
 
     for line in (bpy_result.get("output") or "").splitlines():
         if line.startswith("SMOKE:"):
-            print(f"OK headless scene: {line[len('SMOKE:'):]}")
+            print(f"OK headless scene: {line[len('SMOKE:') :]}")
 
     geonodes = await app.call_tool(
         "blender_geonodes",

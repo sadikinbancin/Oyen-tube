@@ -50,12 +50,15 @@ class TestBlenderRuntime:
     async def test_headless_fallback(self):
         from blender_mcp.utils.blender_runtime import execute_bpy_script
 
-        with patch(
-            "blender_mcp.app._exec_in_blender_session",
-            new=AsyncMock(return_value={"success": False, "output": "", "error": "timeout", "session_used": False}),
-        ), patch(
-            "blender_mcp.utils.blender_executor.get_blender_executor",
-        ) as mock_get_executor:
+        with (
+            patch(
+                "blender_mcp.app._exec_in_blender_session",
+                new=AsyncMock(return_value={"success": False, "output": "", "error": "timeout", "session_used": False}),
+            ),
+            patch(
+                "blender_mcp.utils.blender_executor.get_blender_executor",
+            ) as mock_get_executor,
+        ):
             mock_executor = mock_get_executor.return_value
             mock_executor.execute_script = AsyncMock(return_value="done")
             result = await execute_bpy_script("print('hi')", script_name="test")

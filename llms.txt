@@ -1,4 +1,4 @@
-# blender-mcp (v0.5.0)
+# blender-mcp (v0.10.0)
 > **AI-Powered 3D Creation Hub** - Comprehensive FastMCP 3.2.0 server for 3D modeling, animation, and scene management in Blender.
 
 This project uses the SOTA 14.1 Industrial Quality Stack (Ruff + Biome) and follows strict JSON-RPC protocol compliance.

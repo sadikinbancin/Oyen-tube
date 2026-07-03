@@ -1890,7 +1890,7 @@ Source: docs\repository-protection\README.md
 ```
 # 🛡️ Repository Protection Documentation
 
-**Complete guide to keeping your notepadpp-mcp repository safe**
+**Complete guide to keeping your blender-mcp repository safe**
 
 ---
 
@@ -2043,10 +2043,10 @@ git reset --hard HEAD@{5}
 git reset --hard backup-safe-2025-10-08
 
 # Option 3: Restore from bundle
-git clone D:\Backups\notepadpp-mcp\[latest-bundle].bundle restored
+git clone D:\Backups\blender-mcp\[latest-bundle].bundle restored
 
 # Option 4: Re-clone from GitHub (nuclear option)
-git clone https://github.com/sandraschi/notepadpp-mcp.git
+git clone https://github.com/sandraschi/blender-mcp.git
 ```
 
 ---
@@ -2092,7 +2092,7 @@ git log --oneline -5
 
 ```powershell
 # Verify backups exist
-Get-ChildItem D:\Backups\notepadpp-mcp\
+Get-ChildItem D:\Backups\blender-mcp\
 
 # Sync branches
 git checkout develop
@@ -2108,7 +2108,7 @@ git push origin develop
 
 1. **Don't Panic** - Your code is safe on GitHub
 2. **Check Reflog** - `git reflog` shows everything
-3. **Check Backups** - Look in `D:\Backups\notepadpp-mcp\`
+3. **Check Backups** - Look in `D:\Backups\blender-mcp\`
 4. **Re-clone if Needed** - GitHub has everything
 
 ### **Common Issues**
@@ -2208,9 +2208,9 @@ With these three documents and tools, you have:
 
 ### **External Resources**
 
-- [GitHub Repository](https://github.com/sandraschi/notepadpp-mcp)
-- [Issue Tracker](https://github.com/sandraschi/notepadpp-mcp/issues)
-- [Pull Requests](https://github.com/sandraschi/notepadpp-mcp/pulls)
+- [GitHub Repository](https://github.com/sandraschi/blender-mcp)
+- [Issue Tracker](https://github.com/sandraschi/blender-mcp/issues)
+- [Pull Requests](https://github.com/sandraschi/blender-mcp/pulls)
 
 ---
 
@@ -2730,7 +2730,7 @@ Source: docs\mcpb-packaging\README.md
 
 **Read Time**: 15 minutes  
 **Status**: ✅ **COMPLETED** implementation  
-**Package**: dist/notepadpp-mcp.mcpb (ready!)
+**Package**: dist/blender-mcp.mcpb (ready!)
 
 ---
 
@@ -2753,12 +2753,12 @@ Source: docs\mcpb-packaging\README.md
 
 | Property | Value |
 |----------|-------|
-| **Name** | notepadpp-mcp.mcpb |
+| **Name** | blender-mcp.mcpb |
 | **Version** | 1.2.0 |
 | **Size** | 0.19 MB |
 | **Tools** | 26 |
 | **Status** | ✅ Production Ready |
-| **Location** | `dist/notepadpp-mcp.mcpb` |
+| **Location** | `dist/blender-mcp.mcpb` |
 
 ### **User Configuration**
 
@@ -2786,7 +2786,7 @@ When users install our MCPB package, they're prompted for:
 # Build MCPB package (development)
 .\scripts\build-mcpb-package.ps1 -NoSign
 
-# Output: dist/notepadpp-mcp.mcpb (0.19 MB)
+# Output: dist/blender-mcp.mcpb (0.19 MB)
 ```
 
 ### **Build Script Features**
@@ -2851,7 +2851,7 @@ When users install our MCPB package, they're prompted for:
 **Key Sections**:
 ```json
 {
-  "name": "notepadpp-mcp",
+  "name": "blender-mcp",
   "version": "1.2.0",
   "mcp": {
     "version": "2.12.0",
@@ -2876,7 +2876,7 @@ When users install our MCPB package, they're prompted for:
 ```json
 {
   "manifest_version": "0.2",
-  "name": "notepadpp-mcp",
+  "name": "blender-mcp",
   "version": "1.2.0",
   "server": {
     "type": "python",
@@ -2987,7 +2987,7 @@ When users install our MCPB package, they're prompted for:
 ### **What's Inside the MCPB Package**
 
 ```
-notepadpp-mcp.mcpb (0.19 MB)
+blender-mcp.mcpb (0.19 MB)
 ├── manifest.json              # Runtime configuration
 ├── requirements.txt           # Python dependencies
 ├── src/                       # Source code

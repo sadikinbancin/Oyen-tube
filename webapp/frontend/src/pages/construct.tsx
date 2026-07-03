@@ -55,7 +55,16 @@ export default function Construct() {
     } catch {
       // use defaults
     }
-    const response = await apiGenerateBlenderScript(prompt.trim(), model, ollamaUrl);
+    let response;
+    try {
+      response = await apiGenerateBlenderScript(prompt.trim(), model, ollamaUrl);
+    } catch (callErr) {
+      const errMsg = callErr instanceof Error ? callErr.message : "Unknown error";
+      updateStep("generate", "error", errMsg);
+      setError(errMsg);
+      setIsGenerating(false);
+      return;
+    }
     if (response.success && response.data?.script) {
       setGeneratedScript(response.data.script);
       updateStep("generate", "completed", "Script generated (LLM)");

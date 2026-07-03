@@ -92,6 +92,143 @@ asgi_app = app.http_app()
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
+from starlette.routing import Route
+
+
+async def _health(request):
+    return JSONResponse({"status": "ok", "service": "blender-mcp"})
+
+
+asgi_app.router.routes.append(Route("/health", endpoint=_health))
+asgi_app.router.routes.append(Route("/api/health", endpoint=_health))
+asgi_app.router.routes.append(Route("/api/status", endpoint=_health))
+asgi_app.router.routes.append(Route("/api/v1/status", endpoint=_health))
+
+
+async def _logs_endpoint(request):
+    """REST endpoint for logs: GET /api/v1/logs?level=INFO&limit=50&since_minutes=60"""
+    level_filter = request.query_params.get("level")
+    module_filter = request.query_params.get("module")
+    search = request.query_params.get("search")
+    since_minutes_str = request.query_params.get("since_minutes")
+    limit_str = request.query_params.get("limit", "50")
+    try:
+        limit = max(1, min(500, int(limit_str)))
+    except (ValueError, TypeError):
+        limit = 50
+    since_minutes = None
+    if since_minutes_str:
+        try:
+            since_minutes = max(0, int(since_minutes_str))
+        except (ValueError, TypeError):
+            pass
+    logs = get_recent_logs(
+        level_filter=level_filter,
+        module_filter=module_filter,
+        limit=limit,
+        since_minutes=since_minutes,
+    )
+    if search:
+        search_lower = search.lower()
+        logs = [log for log in logs if search_lower in log["message"].lower() or (search_lower in log["name"].lower())]
+    result = []
+    for log in logs:
+        result.append(
+            {
+                "timestamp": log["timestamp"].isoformat(),
+                "level": log["level"],
+                "name": log["name"],
+                "function": log["function"],
+                "line": log["line"],
+                "message": log["message"],
+            }
+        )
+    return JSONResponse({"success": True, "logs": result, "count": len(result)})
+
+
+asgi_app.router.routes.append(Route("/api/v1/logs", endpoint=_logs_endpoint, methods=["GET"]))
+
+_server_start_time = datetime.datetime.now()
+
+
+async def _diagnostics_endpoint(request):
+    """GET /api/v1/diagnostics — system status, tool count, uptime, resources."""
+    uptime = (datetime.datetime.now() - _server_start_time).total_seconds()
+    tool_list = list(app._tool_manager.tools.keys()) if hasattr(app, "_tool_manager") and app._tool_manager else []
+    import psutil
+
+    mem = psutil.virtual_memory()
+    cpu = psutil.cpu_percent(interval=0.2)
+    disk = psutil.disk_usage(".")
+    import platform
+
+    return JSONResponse(
+        {
+            "server": {
+                "name": "blender-mcp",
+                "version": __import__("blender_mcp").__version__,
+                "uptime_seconds": uptime,
+                "port": 10849,
+                "tool_count": len(tool_list),
+                "status": "ok",
+            },
+            "system": {
+                "platform": platform.platform(),
+                "python": platform.python_version(),
+                "cpu_percent": cpu,
+                "memory_percent": mem.percent,
+                "memory_used_gb": round(mem.used / (1024**3), 1),
+                "memory_total_gb": round(mem.total / (1024**3), 1),
+                "disk_percent": disk.percent,
+            },
+            "blender": {
+                "connected": False,
+                "bridge_addon": False,
+            },
+        }
+    )
+
+
+asgi_app.router.routes.append(Route("/api/v1/diagnostics", endpoint=_diagnostics_endpoint, methods=["GET"]))
+
+
+async def _skills_list_endpoint(request):
+    """GET /api/skills — list registered skills from FastMCP resource providers."""
+    skills = []
+    try:
+        providers = getattr(app, "_resource_providers", [])
+        for prov in providers:
+            if hasattr(prov, "list_resources"):
+                resources = await prov.list_resources()
+                for r in resources:
+                    uri = str(r.uri) if hasattr(r, "uri") else str(r)
+                    if "/SKILL.md" in uri or "skill://" in uri:
+                        skills.append({"uri": uri, "name": uri.split("/")[-2] if "/" in uri else uri})
+    except Exception:
+        pass
+    return JSONResponse({"success": True, "skills": skills, "count": len(skills)})
+
+
+async def _skills_detail_endpoint(request):
+    """GET /api/skills/{name} — render skill markdown content."""
+    name = request.path_params.get("name", "")
+    try:
+        providers = getattr(app, "_resource_providers", [])
+        for prov in providers:
+            if hasattr(prov, "list_resources"):
+                resources = await prov.list_resources()
+                for r in resources:
+                    uri = str(r.uri) if hasattr(r, "uri") else str(r)
+                    if f"skill://{name}/SKILL.md" in uri or (f"/{name}/" in uri and "/SKILL.md" in uri):
+                        content = await prov.read_resource(uri)
+                        return JSONResponse({"success": True, "name": name, "content": str(content)})
+    except Exception:
+        pass
+    return JSONResponse({"success": False, "error": f"Skill '{name}' not found"}, status_code=404)
+
+
+asgi_app.router.routes.append(Route("/api/skills", endpoint=_skills_list_endpoint, methods=["GET"]))
+asgi_app.router.routes.append(Route("/api/skills/{name}", endpoint=_skills_detail_endpoint, methods=["GET"]))
 
 _blender_tauri = os.environ.get("BLENDER_TAURI", "").lower() in ("1", "true", "yes")
 asgi_app.add_middleware(
@@ -111,20 +248,7 @@ asgi_app.add_middleware(
 )
 
 
-@asgi_app.route("/health", methods=["GET"])
-async def health(request):
-    return JSONResponse({"status": "ok", "service": "blender-mcp"})
-
-
-@asgi_app.route("/api/health", methods=["GET"])
-@asgi_app.route("/api/status", methods=["GET"])
-@asgi_app.route("/", methods=["GET"])
-async def fleet_health(request):
-    return JSONResponse({"status": "ok", "service": "blender-mcp"})
-
-
 # Ensure tool registration via app.py
-
 
 
 def parse_args():
@@ -134,7 +258,15 @@ def parse_args():
     # Server configuration
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind the server to")
     parser.add_argument("--port", type=int, default=8000, help="Port to run the server on")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["stdio", "http", "dual"],
+        default=None,
+        help="Transport mode: stdio, http, or dual (http+stdio). Overrides --http and --stdio.",
+    )
     parser.add_argument("--http", action="store_true", help="Run as HTTP server instead of stdio")
+    parser.add_argument("--stdio", action="store_true", help="Run in stdio mode (default)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     return parser.parse_args()

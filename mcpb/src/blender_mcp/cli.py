@@ -94,7 +94,6 @@ def install_claude_config():
     elif system == "linux":
         config_dir = Path.home() / ".config" / "Claude"
     else:
-        print(f"Unsupported platform: {system}")
         return
 
     config_file = config_dir / "claude_desktop_config.json"
@@ -108,7 +107,6 @@ def install_claude_config():
             with open(config_file) as f:
                 config = json.load(f)
         except json.JSONDecodeError:
-            print("Warning: Existing config file is corrupted, creating new one")
             config = {"mcpServers": {}}
     else:
         config = {"mcpServers": {}}
@@ -128,13 +126,6 @@ def install_claude_config():
     with open(config_file, "w") as f:
         json.dump(config, f, indent=2)
 
-    print("✅ Claude Desktop configuration installed!")
-    print(f"📁 Config file: {config_file}")
-    print("🔄 Restart Claude Desktop to load the new MCP server")
-    print()
-    print("To verify installation:")
-    print("1. Open Claude Desktop")
-    print("2. Ask: 'What Blender operations can you perform?'")
 
 
 def check_blender_installation():
@@ -142,12 +133,10 @@ def check_blender_installation():
     import shutil
     import subprocess
 
-    print("🔍 Checking Blender installation...")
 
     # Check if blender command is available
     blender_path = shutil.which("blender")
     if blender_path:
-        print(f"✅ Blender found at: {blender_path}")
 
         # Try to get version
         try:
@@ -156,38 +145,29 @@ def check_blender_installation():
             if result.returncode == 0:
                 # Extract version from first line
                 version_line = result.stdout.strip().split("\n")[0]
-                print(f"📦 {version_line}")
 
                 # Check if version is compatible
                 if "Blender 3." in version_line or "Blender 4." in version_line:
-                    print("✅ Compatible version detected")
+                    pass
                 else:
-                    print("⚠️  Version might not be fully compatible (recommended: 3.0+)")
+                    pass
             else:
-                print("⚠️  Could not determine Blender version")
+                pass
 
         except subprocess.TimeoutExpired:
-            print("⚠️  Blender command timed out")
-        except Exception as e:
-            print(f"⚠️  Error checking version: {e}")
+            pass
+        except Exception:
+            pass
     else:
-        print("❌ Blender not found in PATH")
-        print()
-        print("To install Blender:")
-        print("1. Download from: https://www.blender.org/download/")
-        print("2. Add Blender to your system PATH")
-        print("3. Or set BLENDER_PATH environment variable")
+        pass
 
     # Check Python integration
     try:
         import bpy
 
-        print("✅ Blender Python API (bpy) available")
     except ImportError:
-        print("ℹ️  Blender Python API not available (normal for external MCP usage)")
+        pass
 
-    print()
-    print("🎯 Blender MCP is ready to use with external Blender installations!")
 
 
 if __name__ == "__main__":

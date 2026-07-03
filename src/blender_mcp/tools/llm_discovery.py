@@ -1,6 +1,5 @@
 """Tools for LLM discovery, model CRUD, and Blender script generation (Ollama/LM Studio)."""
 
-import json
 import logging
 import re
 from typing import Any, Literal
@@ -51,8 +50,9 @@ def _register_llm_tools():
                     data = response.json()
                     models["ollama"] = [m["name"] for m in data.get("models", [])]
         except Exception as e:
-            logger.debug(f"Ollama discovery failed: {e}")
-            models["errors"].append(f"Ollama: {e!s}")
+            err_msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            logger.debug(f"Ollama discovery failed: {err_msg}")
+            models["errors"].append(f"Ollama: {err_msg}")
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get("http://localhost:1234/v1/models", timeout=2.0)
@@ -60,8 +60,9 @@ def _register_llm_tools():
                     data = response.json()
                     models["lm_studio"] = [m["id"] for m in data.get("data", [])]
         except Exception as e:
-            logger.debug(f"LM Studio discovery failed: {e}")
-            models["errors"].append(f"LM Studio: {e!s}")
+            err_msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            logger.debug(f"LM Studio discovery failed: {err_msg}")
+            models["errors"].append(f"LM Studio: {err_msg}")
         return {
             "success": True,
             "operation": "list_local_models",
@@ -74,27 +75,28 @@ def _register_llm_tools():
         prompt: str,
         model: str = "llama3.2",
         ollama_url: str = "http://localhost:11434",
-    ) -> str:
+    ) -> dict:
         """Generate a Blender Python script from a natural language prompt using a local LLM (Ollama)."""
         if not prompt or not prompt.strip():
-            return json.dumps({"success": False, "script": "", "error": "Empty prompt"})
+            return {"success": False, "script": "", "error": "Empty prompt"}
         full_prompt = f"{BLENDER_SCRIPT_SYSTEM}\n\nUser request: {prompt.strip()}"
         try:
             out = await _ollama_generate(full_prompt, model=model, url=ollama_url)
             script = _extract_code(out)
             if not script.startswith("import bpy"):
                 script = "import bpy\n\n" + script
-            return json.dumps({"success": True, "script": script, "error": None})
+            return {"success": True, "script": script, "error": None}
         except Exception as e:
             logger.exception("generate_blender_script failed")
-            return json.dumps({"success": False, "script": "", "error": str(e)})
+            err_msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            return {"success": False, "script": "", "error": err_msg}
 
     @app.tool()
     async def llm_models(
         operation: Literal["list", "pull", "remove"] = "list",
         model_name: str | None = None,
         ollama_url: str = OLLAMA_DEFAULT,
-    ) -> str:
+    ) -> dict:
         """
         Portmanteau: list, pull, or remove Ollama models (CRUD for local LLM models).
 
@@ -109,11 +111,11 @@ def _register_llm_tools():
             ollama_url: Ollama API base URL
 
         Returns:
-            JSON string with success, summary, result (list of names) or error.
+            Dict with success, summary, result (list of names) or error.
         """
         base = ollama_url.rstrip("/")
         if operation in ("pull", "remove") and not (model_name and model_name.strip()):
-            return json.dumps({"success": False, "summary": "model_name required for pull/remove", "result": []})
+            return {"success": False, "summary": "model_name required for pull/remove", "result": []}
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 if operation == "list":
@@ -121,31 +123,20 @@ def _register_llm_tools():
                     r.raise_for_status()
                     data = r.json()
                     names = [m.get("name", m.get("model", "")) for m in data.get("models", [])]
-                    return json.dumps(
-                        {
-                            "success": True,
-                            "summary": f"Found {len(names)} Ollama models",
-                            "result": names,
-                        }
-                    )
+                    return {"success": True, "summary": f"Found {len(names)} Ollama models", "result": names}
                 if operation == "pull":
                     r = await client.post(f"{base}/api/pull", json={"name": model_name.strip()})
                     r.raise_for_status()
-                    return json.dumps(
-                        {
-                            "success": True,
-                            "summary": f"Pull started for {model_name}",
-                            "result": [model_name],
-                        }
-                    )
+                    return {"success": True, "summary": f"Pull started for {model_name}", "result": [model_name]}
                 if operation == "remove":
                     r = await client.delete(f"{base}/api/delete", json={"name": model_name.strip()})
                     r.raise_for_status()
-                    return json.dumps({"success": True, "summary": f"Removed {model_name}", "result": []})
+                    return {"success": True, "summary": f"Removed {model_name}", "result": []}
         except Exception as e:
             logger.warning("llm_models %s failed: %s", operation, e)
-            return json.dumps({"success": False, "summary": str(e), "result": []})
-        return json.dumps({"success": False, "summary": f"Unknown operation: {operation}", "result": []})
+            err_msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            return {"success": False, "summary": err_msg, "result": []}
+        return {"success": False, "summary": f"Unknown operation: {operation}", "result": []}
 
 
 _register_llm_tools()

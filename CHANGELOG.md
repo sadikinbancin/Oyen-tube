@@ -1,17 +1,21 @@
-
-## [Unreleased] — 2026-06-14
+## [Unreleased] — 2026-06-21
 
 ### Fixed
 - Tauri build: resolved Rust crate conflict (brotli/alloc-no-stdlib)
 - Tauri build: fixed PyInstaller path mismatch (hyphen to underscore in src dirs)
 - Tauri build: fixed TypeScript errors (unused imports, useRef arg, import.meta.env)
 - Tauri CORS: allow_origins includes tauri://localhost for WebView access
+- LLM Discovery: Fixed `list_local_models` failing silently (returning empty descriptions `Ollama: `) on empty exception messages (e.g. `ConnectTimeout` / `ConnectError`). It now correctly falls back to showing the exception class name.
+- Build Pipeline: Replaced unicode em-dashes `—` with standard ASCII hyphens `-` in `native/build.ps1` to prevent encoding-related PowerShell compiler/parser errors.
+- Build Pipeline: Refactored `Copy-Item` in `native/build.ps1` to use distinct variables and explicit parameter bindings, resolving PowerShell null parameter-binding bugs.
+- Process locking: Terminated running `blender_mcp_native.exe` processes during installer runs to release file locks on the installation directory and prevent NSIS setup write failures.
 
 ### Added
 - CUA-NSIS: just cua-nsis-test recipe, smoke script, config
 - CUA-NSIS: build.ps1 now copies NSIS installer to dist/
 - CUA-NSIS: 11-phase smoke test (install, launch, WebView OCR, diagnostics, uninstall)
 - CUA-NSIS: local certification — all 11 phases pass locally (2026-06-14)
+- Testing: Added unit tests in [test_llm_discovery.py](file:///D:/Dev/repos/blender-mcp/tests/test_llm_discovery.py) to cover `list_local_models` exception formatting and fallback logic under connection/timeout errors.
 
 # Changelog
 

@@ -1,4 +1,14 @@
-## [Unreleased] — 2026-06-21
+## [Unreleased] — 2026-07-04
+
+### Added
+- Session context injection: `.claude-plugin/plugin.json`, `hooks/hooks.json`, `.windsurfrules`, `.github/copilot-instructions.md`
+- CI workflow: `.github/workflows/ci.yml` — ruff, tsc, vite build on push/PR + nightly
+- `STATUS.md` / `TODO.md` — fleet compliance tracking
+- Vite `/api` proxy — routes API calls to backend port 10849
+- `color-scheme: dark` — on `body` and `select/input/textarea`
+
+### Fixed
+- CSS syntax error — extra `}` on line 60 broke Vite build
 
 ### Fixed
 - Tauri build: resolved Rust crate conflict (brotli/alloc-no-stdlib)

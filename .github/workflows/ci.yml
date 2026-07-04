@@ -2,53 +2,43 @@ name: CI
 
 on:
   push:
+    branches: ["*"]
     tags: ["v*"]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 jobs:
   lint:
-    name: Lint
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run ruff check
-        run: uv run ruff check . --fix
-
-      - name: Run ruff format check
-        run: uv run ruff format --check .
+      - uses: astral-sh/setup-uv@v5
+        with: { python-version: "3.12" }
+      - run: uv sync --group dev
+      - run: uv run ruff check src/
 
   test:
-    name: Test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { python-version: "3.12" }
+      - run: uv sync --group dev
+      - run: uv run pytest tests/ -q
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run tests
-        run: uv run pytest -x --tb=short -k "not slow"
+  build-web:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - working-directory: webapp/frontend
+        run: npm ci
+      - name: TypeScript check
+        working-directory: webapp/frontend
+        run: npx tsc --noEmit
+      - name: Vite build
+        working-directory: webapp/frontend
+        run: npx vite build

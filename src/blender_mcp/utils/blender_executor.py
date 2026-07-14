@@ -273,11 +273,11 @@ except Exception as e:
             if os.name == "nt":
                 command = " ".join(blender_cmd)
                 logger.debug(f"Running command: {command}")
-                result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False, shell=True)
+                result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False, shell=True, stdin=subprocess.DEVNULL)
             else:
                 # On Unix-like systems, we can pass the command as a list
                 logger.debug(f"Running command: {' '.join(blender_cmd)}")
-                result = subprocess.run(blender_cmd, capture_output=True, text=True, timeout=30, check=False)
+                result = subprocess.run(blender_cmd, capture_output=True, text=True, timeout=30, check=False, stdin=subprocess.DEVNULL)
 
             if result.returncode != 0:
                 logger.error(f"Blender functionality test failed: {result.stderr}")
@@ -456,6 +456,7 @@ except Exception as user_error:
             # Create subprocess with proper settings
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.temp_dir,

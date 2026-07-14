@@ -7,12 +7,15 @@ Provides tools for UV mapping, unwrapping, and texture coordinate management.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 def _register_uv_tools():
     """Register all UV-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_uv(
         operation: str = "unwrap",
         object_name: str = "",
@@ -39,6 +42,14 @@ def _register_uv_tools():
 
         Returns:
             Success message with UV operation details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_uv", {"operation": "unwrap", "object_name": "Cube"})
+        ```
         """
         from blender_mcp.handlers.uv_handler import (
             get_uv_info,

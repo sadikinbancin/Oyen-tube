@@ -27,6 +27,10 @@ from blender_mcp.services.sketchfab_api import SketchfabAPI
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _hdr_world_script(hdr_path: str) -> str:
     """Generate bpy script: load HDRI and wire Environment Texture to World output."""
@@ -60,7 +64,7 @@ print("SUCCESS: HDRI world configured")
 def _register_asset_library_tools() -> None:
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def manage_asset_library(
         operation: Literal[
             "polyhaven_categories",
@@ -113,6 +117,14 @@ def _register_asset_library_tools() -> None:
 
         Returns:
             Structured dict with success, message, and operation-specific fields.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("manage_asset_library", {"operation": "polyhaven_search", "asset_type": "hdris"})
+        ```
         """
         if operation == "info":
             return {

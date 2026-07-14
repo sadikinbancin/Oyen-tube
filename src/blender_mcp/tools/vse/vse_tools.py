@@ -13,11 +13,15 @@ from blender_mcp.compat import *
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_vse_tools():
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_vse(
         operation: Literal[
             "add_movie",
@@ -182,6 +186,14 @@ def _register_vse_tools():
             Effects require two selected strips (above/below the effect channel).
             Use add_movie first, then add_effect between strips for transitions.
             VSE rendering respects scene frame range unless overridden.
+
+        ## Return Format
+        Operation result message with success/failure status and details.
+
+        ## Examples
+        ```python
+        await call_tool("blender_vse", {"operation": "list_strips"})
+        ```
         """
         from blender_mcp.handlers.vse_handler import (
             add_color,

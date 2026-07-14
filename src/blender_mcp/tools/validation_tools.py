@@ -10,6 +10,10 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -21,7 +25,7 @@ def _register_validation_tools():
     """Register validation tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def blender_validation(
         operation: Literal[
             "validate_avatar",
@@ -69,6 +73,14 @@ def _register_validation_tools():
             - blender_validation("check_polycount") - Just polycount check
             - blender_validation(target_platform="resonite") - Resonite validation
             - blender_validation(check_materials=False) - Skip material checks
+
+        ## Return Format
+        Formatted validation report with status, issues, and recommendations
+
+        ## Examples
+        ```python
+        await call_tool("blender_validation", {"operation": "validate_avatar", "target_platform": "vrchat"})
+        ```
         """
         logger.info(
             f"blender_validation called with operation='{operation}', platform='{target_platform}', "

@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field
 
 from ..compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 # Note: The actual tool functions are defined in the handlers and registered with @app.tool decorators.
 # This module provides parameter models and enums for documentation and validation purposes.
 # We don't import from handlers to avoid circular imports.
@@ -306,39 +310,102 @@ def register(app) -> None:
     """Register all scene tools."""
     from blender_mcp.handlers import scene_handler
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def create_scene(scene_name: str = "NewScene") -> str:
-        """Create a new Blender scene with the specified name."""
+        """Create a new Blender scene with the specified name.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("create_scene", {"scene_name": "MyScene"})
+        ```
+        """
         return await scene_handler.create_scene(scene_name)
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def list_scenes() -> str:
-        """List all scenes in the current Blender file."""
+        """List all scenes in the current Blender file.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("list_scenes")
+        ```
+        """
         return await scene_handler.list_scenes()
 
-    @app.tool
+    @app.tool(annotations=_DESTRUCTIVE)
     async def clear_scene() -> str:
-        """Remove all objects from the current scene."""
+        """Remove all objects from the current scene.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("clear_scene")
+        ```
+        """
         return await scene_handler.clear_scene()
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def scene_get_hierarchy() -> str:
-        """Get the full scene hierarchy as a JSON-formatted string."""
+        """Get the full scene hierarchy as a JSON-formatted string.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("scene_get_hierarchy")
+        ```
+        """
         return await scene_handler.scene_get_hierarchy()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def set_active_scene(scene_name: str) -> str:
-        """Set the active scene by name."""
+        """Set the active scene by name.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("set_active_scene", {"scene_name": "Scene"})
+        ```
+        """
         return await scene_handler.set_active_scene(scene_name)
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def create_collection(collection_name: str) -> str:
-        """Create a new collection."""
+        """Create a new collection.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("create_collection", {"collection_name": "MyCollection"})
+        ```
+        """
         return await scene_handler.create_collection(collection_name)
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def add_to_collection(collection_name: str, object_name: str) -> str:
-        """Add an object to a collection."""
+        """Add an object to a collection.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("add_to_collection", {"collection_name": "MyCollection", "object_name": "Cube"})
+        ```
+        """
         return await scene_handler.add_to_collection(collection_name, object_name)
 
 

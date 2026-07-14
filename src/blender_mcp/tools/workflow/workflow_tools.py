@@ -14,6 +14,10 @@ from blender_mcp.compat import *
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 # Predefined workflow templates
 WORKFLOW_TEMPLATES = {
     "product_shot": {
@@ -66,7 +70,7 @@ def _register_workflow_tools():
     """Register workflow/macro tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_workflow(
         operation: Literal["execute", "list_templates", "get_template"] = "list_templates",
         # For execute operation
@@ -129,6 +133,14 @@ def _register_workflow_tools():
             # Execute template with parameter overrides
             blender_workflow(operation="execute", template="product_shot",
                             params={"light_type": "SUN"})
+
+        ## Return Format
+        Execution results or template information
+
+        ## Examples
+        ```python
+        await call_tool("blender_workflow", {"operation": "list_templates"})
+        ```
         """
         if operation == "list_templates":
             result = {"templates": {}}

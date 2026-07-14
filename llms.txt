@@ -1,25 +1,16 @@
-# blender-mcp (v0.10.0)
-> **AI-Powered 3D Creation Hub** - Comprehensive FastMCP 3.2.0 server for 3D modeling, animation, and scene management in Blender.
+# blender-mcp
+> AI-powered 3D creation and automation via FastMCP — Blender modeling, animation, rendering, and scene management.
 
-This project uses the SOTA 14.1 Industrial Quality Stack (Ruff + Biome) and follows strict JSON-RPC protocol compliance.
+## Core Reference
+- [llms-full.txt](llms-full.txt): Full tool reference, API docs, architecture, env vars, and installation.
 
 ## Docs
-- [Readme](README.md): Main project overview, architecture, and Industrial Quality Stack documentation.
-- [Changelog](CHANGELOG.md): Detailed history of releases and transitions.
-- [Development](docs/development/README.md): Best practices for AI-assisted development in this repository.
-- [MCP Technical](docs/mcp-technical/README.md): Detailed technical spec for the Blender-MCP bridge and session management.
-- [Repository Protection](docs/repository-protection/README.md): Guide to maintaining repository integrity and safety.
-
-## Examples
-- [Examples](examples/): Example code and implementations
-- [Examples](docs\EXAMPLES.md): Example usage and code samples
+- [Readme](README.md): Project overview, architecture, and quality stack.
+- [Changelog](CHANGELOG.md): Release history and transitions.
+- [Development](docs/development/README.md): Best practices for AI-assisted development.
+- [MCP Technical](docs/mcp-technical/README.md): Blender-MCP bridge and session management.
 
 ## Configuration
-- [Pyproject](pyproject.toml): Python project configuration and dependencies
-- [Package](webapp\frontend\package.json): Node.js project configuration and dependencies
-- [Cargo](Cargo.toml): Rust project configuration and dependencies
-- [Config](.git\config): Application configuration files
-
-## Optional
-- [Changelog](CHANGELOG.md): Project changelog information
-- [License](LICENSE): Project license information
+- [Pyproject](pyproject.toml): Python project configuration.
+- [Cargo](Cargo.toml): Rust project configuration.
+- [Package](webapp/frontend/package.json): Node.js webapp configuration.

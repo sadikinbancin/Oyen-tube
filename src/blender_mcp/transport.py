@@ -133,7 +133,7 @@ def resolve_transport(args: argparse.Namespace) -> TransportType:
     """
     # --mode flag takes highest priority
     if args.mode and args.mode != "dual":
-        return args.mode  # type: ignore
+        return args.mode  # type: ignore[return-value]
     if args.http or (args.mode == "dual"):
         return "http"
     elif args.sse:
@@ -152,7 +152,7 @@ def resolve_transport(args: argparse.Namespace) -> TransportType:
             return "stdio"
         if env_transport == "sse":
             logger.warning("SSE transport is deprecated. Consider using MCP_TRANSPORT=http instead.")
-        return env_transport  # type: ignore
+        return env_transport  # type: ignore[return-value]
 
 
 def resolve_config(args: argparse.Namespace) -> dict:

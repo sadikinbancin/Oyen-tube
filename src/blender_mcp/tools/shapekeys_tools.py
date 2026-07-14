@@ -10,6 +10,10 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -21,7 +25,7 @@ def _register_shapekeys_tools():
     """Register shape keys tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_shapekeys(
         operation: Literal[
             "create_viseme_shapekeys",
@@ -81,6 +85,14 @@ def _register_shapekeys_tools():
             - blender_shapekeys("set_viseme_weights", viseme_weights={"A": 1.0}) - Set mouth to A shape
             - blender_shapekeys("create_facial_expression", expression_name="happy") - Create happy expression
             - blender_shapekeys("analyze_shapekeys") - Check VRM compliance
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_shapekeys", {"operation": "create_viseme_shapekeys"})
+        ```
         """
         logger.info(f"blender_shapekeys called with operation='{operation}'")
 

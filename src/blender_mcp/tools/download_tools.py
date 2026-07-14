@@ -16,6 +16,10 @@ from ..app import app
 
 logger = logging.getLogger(__name__)
 from ..compat import *
+
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 from ..utils.error_handling import MCPError
 
 # Supported file extensions and their Blender import methods
@@ -168,7 +172,7 @@ except Exception as e:
     return script
 
 
-@app.tool
+@app.tool(annotations=_MUTATING)
 async def blender_download(
     operation: str = "download",
     url: str = "",
@@ -192,6 +196,14 @@ async def blender_download(
 
     Returns:
         Success message or info string
+
+    ## Return Format
+    Standard string with operation result details
+
+    ## Examples
+    ```python
+    await call_tool("blender_download", {"operation": "download", "url": "https://example.com/model.glb"})
+    ```
     """
     if operation == "info":
         logger.info("Getting download tool information")

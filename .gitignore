@@ -202,3 +202,4 @@ _dashboard/
 # Tauri native
 native/resources/*.exe
 native/binaries/*.exe
+native/gen/

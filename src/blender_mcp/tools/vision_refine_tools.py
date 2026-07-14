@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_vision_refine_tools() -> None:
     from blender_mcp.app import get_app
@@ -18,7 +22,7 @@ def _register_vision_refine_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_vision_refine(
         operation: str = "capture",
         output_path: str = "",
@@ -37,6 +41,14 @@ def _register_vision_refine_tools() -> None:
         - capture: viewport PNG + base64 for vision models
         - review_bundle: screenshot + multi-angle stills + scene summary + refinement prompt
         - apply_script: run corrective bpy script after vision model feedback
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_vision_refine", {"operation": "capture", "output_path": "C:/shot.png"})
+        ```
         """
         try:
             if operation == "capture":

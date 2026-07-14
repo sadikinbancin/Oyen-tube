@@ -287,11 +287,13 @@ async def screenshot_viewport(
     resolution_y: int = 720,
     shading_mode: str = "SOLID",
     prefer_session: bool = True,
+    max_size: int = 1000,
 ) -> dict[str, Any]:
-    """Capture the 3D viewport or a still render for agent vision feedback.
+    """Capture the 3D viewport or still render for agent vision feedback.
 
-    Prefers a live Blender GUI session (bridge addon) so the user sees the same
-    scene the agent is inspecting. Falls back to headless still render.
+    Uses ``bpy.ops.screen.screenshot_area`` in live sessions for instant capture.
+    Falls back to ``bpy.ops.render.render`` in headless mode. Resizes output so
+    the largest dimension does not exceed ``max_size``.
     """
     import base64
     from pathlib import Path
@@ -301,16 +303,12 @@ async def screenshot_viewport(
     output_path = str(Path(output_path).absolute())
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    script = f"""
-import os
-import bpy
-
-output_path = r"{output_path}"
-os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    script = f"""import bpy, os, tempfile
+filepath = r"{output_path}"
+os.makedirs(os.path.dirname(filepath), exist_ok=True)
 scene = bpy.context.scene
 scene.render.resolution_x = {resolution_x}
 scene.render.resolution_y = {resolution_y}
-scene.render.filepath = output_path
 scene.render.image_settings.file_format = 'PNG'
 
 captured = False
@@ -323,23 +321,28 @@ if bpy.context.screen:
                         space.shading.type = '{shading_mode}'
                     except Exception:
                         pass
-            for region in area.regions:
-                if region.type == 'WINDOW':
-                    override = bpy.context.copy()
-                    override['area'] = area
-                    override['region'] = region
-                    with bpy.context.temp_override(**override):
-                        bpy.ops.render.opengl(write_still=True)
-                    captured = True
-                    break
-        if captured:
+            with bpy.context.temp_override(area=area):
+                bpy.ops.screen.screenshot_area(filepath=filepath)
+            captured = os.path.exists(filepath)
             break
 
-if not captured or not os.path.exists(output_path):
+if not captured:
+    scene.render.filepath = filepath
     bpy.ops.render.render(write_still=True)
 
-print("SCREENSHOT_PATH:" + output_path)
-print("SCREENSHOT_MODE:" + ("viewport" if captured else "render"))
+# Resize if largest dimension exceeds max_size
+max_size = {max_size}
+if max_size > 0 and os.path.exists(filepath):
+    img = bpy.data.images.load(filepath)
+    w, h = img.size
+    if max(w, h) > max_size:
+        scale = max_size / max(w, h)
+        img.scale(int(w * scale), int(h * scale))
+        img.save()
+    bpy.data.images.remove(img)
+
+print("SCREENSHOT_PATH:" + filepath)
+print("CAPTURED:" + str(captured))
 """
 
     result = await execute_bpy_script(
@@ -357,7 +360,7 @@ print("SCREENSHOT_MODE:" + ("viewport" if captured else "render"))
     payload: dict[str, Any] = {
         "success": True,
         "output_path": image_path,
-        "capture_mode": meta.get("SCREENSHOT_MODE", result.get("mode", "unknown")),
+        "capture_mode": "viewport" if meta.get("CAPTURED") == "True" else "render",
         "session_used": result.get("session_used", False),
         "execution_mode": result.get("mode"),
         "resolution": [resolution_x, resolution_y],

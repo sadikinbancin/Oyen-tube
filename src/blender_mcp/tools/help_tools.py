@@ -7,9 +7,17 @@ Single tool for help, list_tools, search, tool_info, and categories.
 import logging
 from typing import Literal
 
+from fastmcp.server.server import ToolResult
+from prefab_ui import PrefabApp
+from prefab_ui.components import Heading, Row
+
 from ..compat import *
 
 logger = logging.getLogger(__name__)
+
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 
 def get_app():
@@ -22,7 +30,7 @@ def _register_help_tools():
     """Register the blender_help portmanteau tool."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def blender_help(
         operation: Literal["help", "list_tools", "search", "tool_info", "categories"] = "help",
         function_name: str | None = None,
@@ -51,6 +59,14 @@ def _register_help_tools():
 
         Returns:
             Formatted help/list/search/info/categories text
+
+        ## Return Format
+        Formatted string with operation results
+
+        ## Examples
+        ```python
+        await call_tool("blender_help", {"operation": "list_tools"})
+        ```
         """
         from blender_mcp.help import (
             get_help as _get_help,
@@ -174,6 +190,36 @@ def _register_help_tools():
             return result
 
         return f"Unknown operation: {operation}. Use: help, list_tools, search, tool_info, categories"
+
+    @app.tool(app=True, annotations=_READ_ONLY)
+    async def show_tools_app() -> ToolResult:
+        """List all tools organized by category as a Prefab card.
+
+        ## Return Format
+        Prefab card with Headings per category and Rows per tool
+
+        ## Examples
+        ```python
+        await call_tool("show_tools_app")
+        ```
+        """
+        from blender_mcp.help import list_categories, list_functions
+
+        categories = list_categories()
+        total = 0
+
+        with PrefabApp(title="Blender MCP Tools") as card:
+            for cat in categories:
+                tools = list_functions(cat)
+                total += len(tools)
+                Heading(f"{cat} ({len(tools)})")
+                for tool in tools:
+                    Row(label=tool, value="")
+
+        return ToolResult(
+            content=f"{total} tools across {len(categories)} categories",
+            structured_content=card,
+        )
 
 
 _register_help_tools()

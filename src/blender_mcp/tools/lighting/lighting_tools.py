@@ -11,12 +11,16 @@ from blender_mcp.compat import *
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_lighting_tools():
     """Register all lighting-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_lighting(
         operation: str = "create_sun",
         light_name: str = "Light",
@@ -97,6 +101,14 @@ def _register_lighting_tools():
             Three-point lighting automatically positions key (45°), fill (-45°), and rim (135°) lights.
             HDRI setup requires an HDRI image file to be loaded separately.
             Use blender_camera tools to adjust camera exposure for different lighting conditions.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_lighting", {"operation": "create_sun", "light_name": "Sun"})
+        ```
         """
         from blender_mcp.handlers.lighting_handler import (
             adjust_light,

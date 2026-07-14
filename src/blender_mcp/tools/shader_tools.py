@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_shader_tools() -> None:
     from blender_mcp.app import get_app
@@ -19,7 +23,7 @@ def _register_shader_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_shaders(
         operation: str = "create_material",
         material_name: str = "",
@@ -43,6 +47,14 @@ def _register_shader_tools() -> None:
         - create_node: add a shader node to an existing material
         - connect_nodes: wire two shader nodes together
         - list_node_types: return common ShaderNode type names
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_shaders", {"operation": "create_material", "material_name": "MyMat"})
+        ```
         """
         try:
             if operation == "create_material":

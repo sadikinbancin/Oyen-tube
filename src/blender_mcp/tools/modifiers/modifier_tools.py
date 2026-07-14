@@ -7,12 +7,15 @@ Provides tools for adding, managing, and applying mesh modifiers.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 def _register_modifier_tools():
     """Register all modifier-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_modifiers(
         operation: str = "add_subsurf",
         object_name: str = "",
@@ -61,6 +64,14 @@ def _register_modifier_tools():
 
         Returns:
             Success message with modifier operation details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_modifiers", {"operation": "add_subsurf", "object_name": "Cube"})
+        ```
         """
         from blender_mcp.handlers.modifier_handler import (
             add_modifier,

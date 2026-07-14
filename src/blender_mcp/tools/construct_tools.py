@@ -24,6 +24,10 @@ except ImportError:
     # Fallback for different FastMCP versions
     from typing import Any as Context
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 class ConstructObjectParams(BaseModel):
     """Parameters for universal object construction using LLM-generated Blender scripts."""
@@ -64,7 +68,7 @@ def _register_construct_tools():
     """Register universal construction tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def construct_object(
         ctx: Context,
         description: str = "a simple cube",
@@ -150,6 +154,14 @@ def _register_construct_tools():
             Success depends on LLM capability and Blender API knowledge.
             Complex objects may require multiple iterations for refinement.
             Generated scripts are validated for safety before execution.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("construct_object", {"description": "a red cube"})
+        ```
         """
         try:
             # Validate inputs

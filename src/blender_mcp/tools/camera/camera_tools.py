@@ -11,12 +11,16 @@ from blender_mcp.compat import *
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_camera_tools():
     """Register all camera-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_camera(
         operation: str = "create_camera",
         camera_name: str = "Camera",
@@ -51,6 +55,14 @@ def _register_camera_tools():
 
         Returns:
             Success message with camera details
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_camera", {"operation": "create_camera", "camera_name": "MainCam"})
+        ```
         """
         from blender_mcp.handlers.camera_handler import (
             create_camera,

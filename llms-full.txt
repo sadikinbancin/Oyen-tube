@@ -1,7 +1,7 @@
 # blender-mcp
 > **Guides, best practices, and lessons learned for developing blender-mcp** --- 📄 [AI_DEVELOPMENT_RULES.md](AI_DEVELOPMENT_RULES.md) **Guidelines for AI-assisted development** - Best practices for work...
 
-Generated on: 2026-03-02 23:58:40
+Generated on: 2026-07-14 23:58:40
 
 ## Docs - Full Content
 
@@ -137,7 +137,7 @@ This directory contains **development-focused documentation** including:
 - Code review with AI
 
 ### **Python & FastMCP**
-- FastMCP 2.12+ patterns
+- FastMCP 3.4+ patterns
 - Windows API integration
 - Async/await best practices
 - Error handling decorators
@@ -237,7 +237,7 @@ Source: docs\mcp-technical\README.md
 
 ---
 
-### **3. FastMCP 2.12 Troubleshooting**
+### **3. FastMCP 3.4 Troubleshooting**
 📄 [TROUBLESHOOTING_FASTMCP_2.12.md](TROUBLESHOOTING_FASTMCP_2.12.md)
 
 **FastMCP-specific issues and solutions**
@@ -343,7 +343,7 @@ This directory contains **MCP server technical documentation** including:
 ## 🏆 **Production Readiness**
 
 **Our MCP server achieves**:
-- ✅ FastMCP 2.12+ compliance
+- ✅ FastMCP 3.4+ compliance
 - ✅ Zero print statements (stdio safe)
 - ✅ Structured logging
 - ✅ Comprehensive error handling
@@ -451,7 +451,7 @@ This directory contains **MCP server technical documentation** including:
 
 - ✅ Zero print() statements
 - ✅ Structured logging (stderr)
-- ✅ FastMCP 2.12+
+- ✅ FastMCP 3.4+
 - ✅ Comprehensive tests
 - ✅ Error handling
 - ✅ Type hints
@@ -760,7 +760,7 @@ All documentation related to:
 | Documentation | 9/10 | Complete, professional |
 | Infrastructure | 9/10 | Full CI/CD pipeline |
 | Packaging | 8/10 | Valid builds |
-| MCP Compliance | 9/10 | FastMCP 2.12+ |
+| MCP Compliance | 9/10 | FastMCP 3.4+ |
 | **TOTAL** | **85/100** | **GOLD** 🏆 |
 
 ---
@@ -864,7 +864,7 @@ All documentation related to:
 - MCPB packaging (bonus)
 
 ✅ **MCP Compliance** (9/10)
-- FastMCP 2.12+
+- FastMCP 3.4+
 - Tool registration
 - stdio protocol
 - Proper configuration
@@ -998,7 +998,7 @@ Use: [GLAMA_RESCAN_EMAIL.txt](GLAMA_RESCAN_EMAIL.txt)
 - [x] One-click installation
 
 ### **MCP Compliance** ✅
-- [x] FastMCP 2.12+
+- [x] FastMCP 3.4+
 - [x] stdio protocol
 - [x] Tool registration
 - [x] Proper configuration
@@ -1133,7 +1133,7 @@ Source: README.md
 
 ### 🤖 **AI Construction System**
 - **Conversational 3D Creation**: Natural language to professional 3D objects
-- **FastMCP 2.14.3 Integration**: Advanced AI sampling and security validation
+- **FastMCP 3.4 Integration**: Advanced AI sampling and security validation
 - **Object Repository**: Versioned asset management with intelligent search
 - **Cross-Platform Export**: Seamless handoff to VR platforms (VRChat, Resonite, Unity)
 
@@ -1289,7 +1289,7 @@ Add to your `claude_desktop_config.json`:
 Licensed under MIT - Free for personal and commercial use
 
 **Built with:**
-- 🐍 **FastMCP 2.14.3** - MCP server framework
+- 🐍 **FastMCP 3.4** - MCP server framework
 - 🎨 **Blender API** - 3D creation engine
 - 🤖 **Claude Integration** - AI assistance
 - 🌐 **Open Standards** - MCP protocol compliance
@@ -2880,10 +2880,10 @@ When users install our MCPB package, they're prompted for:
   "version": "1.2.0",
   "server": {
     "type": "python",
-    "entry_point": "src/notepadpp_mcp/tools/server.py",
+    "entry_point": "src/blender_mcp/tools/server.py",
     "mcp_config": {
       "command": "python",
-      "args": ["-m", "notepadpp_mcp.tools.server"],
+      "args": ["-m", "blender_mcp.tools.server"],
       "env": {
         "PYTHONPATH": "${PWD}",
         "NOTEPADPP_PATH": "${user_config.notepadpp_path}"
@@ -2991,7 +2991,7 @@ blender-mcp.mcpb (0.19 MB)
 ├── manifest.json              # Runtime configuration
 ├── requirements.txt           # Python dependencies
 ├── src/                       # Source code
-│   └── notepadpp_mcp/
+│   └── blender_mcp/
 │       ├── __init__.py
 │       ├── tools/
 │       │   └── server.py      # Main server (2,424 lines)
@@ -3096,11 +3096,11 @@ Source: README_NEW.md
 ```
 # Blender MCP Server
 
-A comprehensive FastMCP 2.12 compliant MCP server for Blender automation, designed to provide programmatic control over Blender's extensive 3D creation, manipulation, and rendering capabilities. Connects via stdio to Claude Desktop and via HTTP transport to other MCP-compatible tools.
+A comprehensive FastMCP 3.4 compliant MCP server for Blender automation, designed to provide programmatic control over Blender's extensive 3D creation, manipulation, and rendering capabilities. Connects via stdio to Claude Desktop and via HTTP transport to other MCP-compatible tools.
 
 ## What is This?
 
-This is a **FastMCP 2.12 server** that exposes Blender's powerful 3D creation and manipulation capabilities as standardized MCP tools. It allows AI assistants like Claude to:
+This is a **FastMCP 3.4 server** that exposes Blender's powerful 3D creation and manipulation capabilities as standardized MCP tools. It allows AI assistants like Claude to:
 
 - **Create 3D scenes, objects, and materials programmatically**
 - **Automate complex Blender workflows**
@@ -3109,7 +3109,7 @@ This is a **FastMCP 2.12 server** that exposes Blender's powerful 3D creation an
 
 ## Architecture
 
-**FastMCP 2.12 Standard Compliance:**
+**FastMCP 3.4 Standard Compliance:**
 - ✅ Proper `@app.tool` decorators
 - ✅ Multiline self-documenting docstrings (no """ inside)
 - ✅ Pydantic parameter validation
@@ -3283,14 +3283,14 @@ result = await app.run_tool("create_scene", {"scene_name": "MyScene"})
 
 - **Handler Layer**: Business logic in `src/blender_mcp/handlers/`
 - **Tool Layer**: MCP interface in `src/blender_mcp/tools/` (organized by category)
-- **Standards**: FastMCP 2.12 compliance with proper decorators and documentation
+- **Standards**: FastMCP 3.4 compliance with proper decorators and documentation
 - **Testing**: Comprehensive test suite with real Blender integration
 
 ## Contributing
 
 1. Add handlers in `src/blender_mcp/handlers/`
 2. Create tool definitions in `src/blender_mcp/tools/{category}/`
-3. Follow FastMCP 2.12 patterns with `@app.tool` decorators
+3. Follow FastMCP 3.4 patterns with `@app.tool` decorators
 4. Use multiline docstrings for self-documentation
 5. Add tests in `tests/` directory
 
@@ -4066,7 +4066,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🎨 Revolutionary AI Construction System**: Complete natural language to 3D object conversion
   - `manage_object_construction`: Universal object creation with LLM-generated Blender scripts
   - `manage_object_repo`: Comprehensive object repository with versioning and search
-  - FastMCP 2.14.3 sampling integration for conversational 3D creation
+  - FastMCP 3.4 sampling integration for conversational 3D creation
   - Multi-layer security validation (syntax, security scoring, sandbox execution)
   - Iterative refinement system with automatic failure recovery
 - **🤖 Agentic Construction Pipeline**: End-to-end AI-powered 3D creation workflow
@@ -4089,7 +4089,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Safe execution environment with timeout and error containment
 
 ### Technical Improvements
-- **FastMCP 2.14.3 Compliance**: Updated from 2.12.0 to 2.14.3 with sampling capabilities
+- **FastMCP 3.4 Compliance**: Updated from 2.12.0 to 2.14.3 with sampling capabilities
 - **Portmanteau Tool Consolidation**: Reduced tool explosion with versatile multi-operation tools
 - **Context Preservation**: Maintains conversational state across LLM sampling calls
 - **Import Error Fixes**: Resolved critical import issues for Context and ScriptValidationResult
@@ -4148,7 +4148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mobile VR optimization (reduce draw calls)
 
 ### Technical
-- **FastMCP 2.13+ Portmanteau Pattern**: All tools use consolidated interfaces
+- **FastMCP 3.4 Portmanteau Pattern**: All tools use consolidated interfaces
 - **Advanced Blender API Integration**: Direct access to rigging, materials, and animation
 - **Cross-Platform File Handling**: Pathlib-based operations for Windows/Linux/Mac
 - **Comprehensive Error Recovery**: Custom exceptions for each tool category

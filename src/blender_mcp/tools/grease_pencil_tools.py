@@ -7,11 +7,15 @@ from blender_mcp.compat import *
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_grease_pencil_tools():
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_grease_pencil(
         operation: str = "create",
         name: str = "GPencil",
@@ -90,6 +94,14 @@ def _register_grease_pencil_tools():
 
         Returns:
             str: Operation result with status and details
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_grease_pencil", {"operation": "create", "name": "MyGP"})
+        ```
         """
         from blender_mcp.handlers.grease_pencil_handler import (
             add_gp_modifier,

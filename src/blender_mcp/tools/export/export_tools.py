@@ -9,12 +9,16 @@ import json
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_export_tools():
     """Register all export-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_export(
         operation: str = "export_glb",
         output_path: str = "",
@@ -32,6 +36,14 @@ def _register_export_tools():
         Operations:
         - export_gltf / export_glb / export_fbx / export_obj / export_stl / export_usd / export_vrm
         - export_unity / export_vrchat / export_unreal (platform presets)
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_export", {"operation": "export_glb", "output_path": "C:/out/model.glb"})
+        ```
         """
         from blender_mcp.handlers.export_handler import (
             export_for_unity,

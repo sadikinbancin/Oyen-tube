@@ -11,12 +11,16 @@ logger = logging.getLogger(__name__)
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_selection_tools():
     """Register all selection-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def blender_selection(
         operation: str = "select_objects",
         object_names: list[str] | None = None,
@@ -46,6 +50,14 @@ def _register_selection_tools():
 
         Returns:
             Success message with selection details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_selection", {"operation": "select_objects", "object_names": ["Cube"]})
+        ```
         """
         from blender_mcp.handlers.selection_handler import (
             select_by_material,

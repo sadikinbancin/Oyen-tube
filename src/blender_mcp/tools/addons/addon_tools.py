@@ -9,12 +9,16 @@ import json
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_addon_tools():
     """Register all addon-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_addons(
         operation: str = "list_addons",
         addon_name: str = "",
@@ -46,6 +50,14 @@ def _register_addon_tools():
 
         Returns:
             JSON string with status/result.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_addons", {"operation": "list_addons"})
+        ```
         """
         import json as _json
 

@@ -9,6 +9,10 @@ import logging
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +20,7 @@ def _register_rigging_tools():
     """Register all rigging-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_rigging(
         operation: str = "create_armature",
         armature_name: str = "Armature",
@@ -150,6 +154,14 @@ def _register_rigging_tools():
             IK constraints improve animation quality but add computational overhead.
             Weight transfer quality depends on mesh topology similarity.
             Humanoid mapping essential for VRChat and Unity character compatibility.
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_rigging", {"operation": "create_armature", "armature_name": "CharacterRig"})
+        ```
         """
         from blender_mcp.handlers.rigging_handler import (
             add_bone,

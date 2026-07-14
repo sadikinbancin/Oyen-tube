@@ -49,10 +49,7 @@ audit-deps:
     uv run safety check
 # ── Packaging & Distribution ──────────────────────────────────────────────────
 
-# Bundle for Claude Desktop (MCPB)
-mcpb-pack:
-    Set-Location '{{justfile_directory()}}'
-    mcpb pack . dist/blender-mcp-v{{__version__}}.mcpb
+# mcpb-pack and cua-nsis-test are imported from scripts/just/fleet.just
 
 # Serve for local stdio testing
 serve:
@@ -73,6 +70,20 @@ build-native-debug:
     $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
     npx @tauri-apps/cli build --debug
 
-# Run CUA smoke test against installed NSIS app
-cua-nsis-test:
-    C:\Windows\py.exe scripts/cua-smoke.py
+# cua-nsis-test is imported from scripts/just/fleet.just
+
+# ── SOTA Gates ────────────────────────────────────────────────────────────────
+
+# Format Python and JS/TS code
+fmt:
+    Set-Location '{{justfile_directory()}}'
+    uv run ruff format .
+    cd webapp/frontend && npx @biomejs/biome format --write .
+
+# Run complete certification pipeline: lint + typecheck + test
+certify: lint
+    Write-Host "=== TypeScript typecheck ===" -ForegroundColor Yellow
+    cd webapp/frontend && npx tsc --noEmit
+    Write-Host "=== Python tests ===" -ForegroundColor Yellow
+    uv run pytest tests/ -v
+    Write-Host "=== Certification PASSED ===" -ForegroundColor Green

@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_batch_tools() -> None:
     from blender_mcp.app import get_app
@@ -18,7 +22,7 @@ def _register_batch_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_batch(
         operation: str = "resize",
         input_dir: str = "",
@@ -38,6 +42,14 @@ def _register_batch_tools() -> None:
         - resize: resize images matching pattern (default *.png)
         - convert: convert image formats in input_dir
         - export: export mesh objects whose names contain name_pattern
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_batch", {"operation": "resize", "input_dir": "C:/images"})
+        ```
         """
         try:
             if operation == "resize":

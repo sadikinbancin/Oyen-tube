@@ -39,6 +39,7 @@ class TestBlenderRuntime:
                     "output": "OK",
                     "error": None,
                     "session_used": True,
+                    "mode": "session",
                 }
             ),
         ):

@@ -1,7 +1,7 @@
 import {
   Activity,
   Box,
-  Camera,
+  type Camera,
   Cpu,
   Layers,
   Palette,
@@ -85,8 +85,8 @@ export default function AgentToolsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Agent Tools</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Phases 1–5: vision loops, shaders, mesh edit, sculpt, geonodes, AI mesh, jobs, validation,
-            batch, and telemetry.
+            Phases 1–5: vision loops, shaders, mesh edit, sculpt, geonodes, AI mesh, jobs,
+            validation, batch, and telemetry.
           </p>
         </div>
         <button

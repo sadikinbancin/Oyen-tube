@@ -1,6 +1,30 @@
-## [Unreleased] — 2026-07-04
+## [Unreleased]
+
+## [0.11.0] — 2026-07-14
 
 ### Added
+- TCP socket bridge addon (`docs/blender_bridge_addon.py`) — replaces HTTP poll, bidirectional, Blender Addon Preferences for API keys
+- `BLENDER_HOST` / `BLENDER_BRIDGE_HOST` env var support — remote Blender connection
+- `backend.rs`: multi-layer `free_port()` (Stop-Process → taskkill → UAC → 240s poll) + stdout/stderr `watch_stream` threads
+- `build.ps1`: API_BASE port verification, frozen binary smoke test, ≥5 MB size gate
+- SOTA docstring sections (`## Return Format`, `## Examples`) on all 68 MCP tools
+- Tool annotations (`_READ_ONLY`/`_MUTATING`/`_DESTRUCTIVE`) on all `@app.tool` decorators
+- Prefab UI cards: `show_blender_status_app`, `show_tools_app`, `show_logs_app`
+- Chat page: localStorage persistence (100 msg cap), 4 personalities, export/clear buttons
+- Skills page (`/skills`) — sidebar listing + markdown viewer
+- `.opencode/skills/blender-mcp/SKILL.md` — opencode agent awareness
+- `justfile`: `fmt` and `certify` recipes, removed duplicate imports
+
+### Fixed
+- CORS: `allow_origin_regex` now unconditional with Tailscale/LAN/CGNAT coverage (was gated on `_blender_tauri`)
+- `llms.txt`: now references `llms-full.txt`, cleaned stale FastMCP/version refs
+- `glama.json`: added `version` field
+- `.gitignore`: added `native/gen/`
+- `# type: ignore` without error codes (4 instances) — added specific error codes
+- `pyproject.toml`: fixed malformed TOML after `[project.urls]` addition
+- Pre-existing Biome lint errors: 29 issues across 11 webapp files (a11y, useExhaustiveDeps, noExplicitAny, etc.)
+- `llms-full.txt`: removed `notepadpp_mcp` template artifact (100+ occurrences), updated FastMCP version refs
+- All 68 tool docstrings: added SOTA-compliant `## Return Format` + `## Examples` sections
 - Session context injection: `.claude-plugin/plugin.json`, `hooks/hooks.json`, `.windsurfrules`, `.github/copilot-instructions.md`
 - CI workflow: `.github/workflows/ci.yml` — ruff, tsc, vite build on push/PR + nightly
 - `STATUS.md` / `TODO.md` — fleet compliance tracking

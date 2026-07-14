@@ -10,6 +10,10 @@ from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -21,7 +25,7 @@ def _register_atlasing_tools():
     """Register atlasing tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_atlasing(
         operation: Literal[
             "create_material_atlas",
@@ -71,6 +75,14 @@ def _register_atlasing_tools():
             - blender_atlasing("optimize_draw_calls", max_materials=2) - Reduce to 2 materials max
             - blender_atlasing("get_atlas_uv_layout") - Get UV coordinates for atlas usage
             - blender_atlasing("merge_texture_atlas", texture_paths=["tex1.png", "tex2.png"]) - Merge textures
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_atlasing", {"operation": "create_material_atlas", "target_mesh": "MyMesh"})
+        ```
         """
         logger.info(f"blender_atlasing called with operation='{operation}', atlas_size={atlas_size}")
 

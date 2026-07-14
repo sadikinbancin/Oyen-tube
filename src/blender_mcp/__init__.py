@@ -1,6 +1,9 @@
-"""Blender MCP - AI-Powered 3D Creation."""
+"""Blender MCP — AI-powered 3D creation and automation via FastMCP."""
 
-__version__ = "0.10.0"
-__author__ = "FlowEngineer sandraschi"
-__email__ = "sandraschi@example.com"
+__version__ = "0.11.0"
+__author__ = "Blender MCP Contributors"
 __license__ = "MIT"
+__project_urls__ = {
+    "Source": "https://github.com/sandraschi/blender-mcp",
+    "Issues": "https://github.com/sandraschi/blender-mcp/issues",
+}

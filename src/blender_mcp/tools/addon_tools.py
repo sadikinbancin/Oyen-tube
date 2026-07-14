@@ -12,13 +12,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_addon_tools() -> None:
     from blender_mcp.app import get_app
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def manage_blender_addons(
         operation: str = "search",
         query: str = "",
@@ -32,6 +36,14 @@ def _register_addon_tools() -> None:
 
         Operations mirror blender_addons: search, install_known, install_url,
         list_installed, enable, disable, info.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("manage_blender_addons", {"operation": "search", "query": "gaussian splat"})
+        ```
         """
         del enabled_only  # list_installed via blender_addons ignores this legacy flag
         op_map = {

@@ -1,11 +1,7 @@
-import { useZoom } from "./hooks/useZoom";
-import { useConnection } from "./store/connection";
-import { useCallback, useEffect, useRef } from "react";
-import { RefreshCw } from "lucide-react";
 import {
   Activity,
-  Box,
   BookOpen,
+  Box,
   Clapperboard,
   Database,
   Layers,
@@ -17,33 +13,37 @@ import {
   Pen,
   Play,
   Puzzle,
+  ScanEye,
   Settings,
   Terminal,
   Wand2,
-  ScanEye,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { Link, Route, BrowserRouter as Router, Routes, useLocation } from "react-router-dom";
-import AgentToolsPage from "./pages/agent-tools";
-import Dashboard from "./pages/dashboard";
+import { useZoom } from "./hooks/useZoom";
 import AddonManagerPage from "./pages/addon-manager";
+import AgentToolsPage from "./pages/agent-tools";
 import AIConstructor from "./pages/ai-constructor";
+import Animation2DPage from "./pages/animation-2d";
 import Apps from "./pages/apps";
 import Chat from "./pages/chat";
 import Construct from "./pages/construct";
+import Dashboard from "./pages/dashboard";
 import GreasePencilPage from "./pages/grease-pencil";
-import Animation2DPage from "./pages/animation-2d";
-import StoryboardPage from "./pages/storyboard";
 import HelpPage from "./pages/help";
+import LogsPage from "./pages/logs";
 import MaterialStore from "./pages/material-store";
 import MeshColliderSplat from "./pages/mesh-collider-splat";
 import RepositoryPage from "./pages/repository";
 import SceneExplorer from "./pages/scene-explorer";
 import ScriptConsole from "./pages/script-console";
 import SettingsPage from "./pages/settings";
+import SkillsPage from "./pages/skills";
 import StatusLogs from "./pages/status";
-import LogsPage from "./pages/logs";
+import StoryboardPage from "./pages/storyboard";
 import VideoEditor from "./pages/video-editor";
 import VRPipeline from "./pages/vr-pipeline";
+import { useConnection } from "./store/connection";
 
 function NavItem({
   to,
@@ -71,14 +71,30 @@ function NavItem({
 
 function ConnectionStatus() {
   const { state, lastError } = useConnection();
-  const statusColor = state === "connected" ? "bg-emerald-500" :
-    state === "connecting" ? "bg-amber-500" : "bg-red-500";
-  const statusLabel = state === "connected" ? "System Online" :
-    state === "connecting" ? "Connecting..." : `Offline${lastError ? ` (${lastError.slice(0, 60)})` : ""}`;
+  const statusColor =
+    state === "connected"
+      ? "bg-emerald-500"
+      : state === "connecting"
+        ? "bg-amber-500"
+        : "bg-red-500";
+  const statusLabel =
+    state === "connected"
+      ? "System Online"
+      : state === "connecting"
+        ? "Connecting..."
+        : `Offline${lastError ? ` (${lastError.slice(0, 60)})` : ""}`;
   return (
     <div className="flex items-center gap-2">
-      <div className={`w-2 h-2 rounded-full ${statusColor} animate-pulse`} data-testid="connection-status" />
-      <span className="text-sm font-medium text-muted-foreground truncate" data-testid="connection-label">{statusLabel}</span>
+      <div
+        className={`w-2 h-2 rounded-full ${statusColor} animate-pulse`}
+        data-testid="connection-status"
+      />
+      <span
+        className="text-sm font-medium text-muted-foreground truncate"
+        data-testid="connection-label"
+      >
+        {statusLabel}
+      </span>
     </div>
   );
 }
@@ -99,17 +115,25 @@ function useHealthPoll() {
       try {
         const r = await fetch(BACKEND_HEALTH_URL, { signal: AbortSignal.timeout(5000) });
         if (cancelled) return;
-        if (r.ok) { useConnection.setState({ state: "connected" }); attemptRef.current = 0; }
-        else useConnection.setState({ state: "offline", lastError: `HTTP ${r.status}` });
+        if (r.ok) {
+          useConnection.setState({ state: "connected" });
+          attemptRef.current = 0;
+        } else useConnection.setState({ state: "offline", lastError: `HTTP ${r.status}` });
       } catch (e) {
         if (cancelled) return;
-        useConnection.setState({ state: "offline", lastError: e instanceof Error ? e.message : String(e) });
+        useConnection.setState({
+          state: "offline",
+          lastError: e instanceof Error ? e.message : String(e),
+        });
       }
       attemptRef.current = Math.min(++attemptRef.current, BACKOFF.length - 1);
       timerRef.current = setTimeout(tick, BACKOFF[attemptRef.current] * 1000);
     }
     tick();
-    return () => { cancelled = true; if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      cancelled = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 }
 
@@ -121,11 +145,16 @@ function useTauriConnectionBridge() {
         const { listen } = await import("@tauri-apps/api/event");
         unlisten = await listen<string>("backend-status", (event) => {
           if (event.payload === "ready") useConnection.setState({ state: "connected" });
-          else if (event.payload?.startsWith("error:")) useConnection.setState({ state: "error", lastError: event.payload });
+          else if (event.payload?.startsWith("error:"))
+            useConnection.setState({ state: "error", lastError: event.payload });
         });
-      } catch { /* dev browser -- no-op */ }
+      } catch {
+        /* dev browser -- no-op */
+      }
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, []);
 }
 
@@ -186,6 +215,7 @@ function Layout() {
           </div>
           <NavItem to="/logs" icon={Terminal} label="Logs" />
           <NavItem to="/help" icon={BookOpen} label="Help & Reference" />
+          <NavItem to="/skills" icon={BookOpen} label="Skills" />
           <NavItem to="/status" icon={Activity} label="System Status" />
           <NavItem to="/apps" icon={LayoutGrid} label="App Hub" />
           <NavItem to="/settings" icon={Settings} label="Settings" />
@@ -238,6 +268,7 @@ function Layout() {
             <Route path="/status" element={<StatusLogs />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/help" element={<HelpPage />} />
+            <Route path="/skills" element={<SkillsPage />} />
             <Route path="/apps" element={<Apps />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<div className="p-6">Select a tool from the sidebar</div>} />

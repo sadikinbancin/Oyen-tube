@@ -114,12 +114,24 @@ export default function VideoEditor() {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <OperationButton label="List Strips" icon={Film} params={{ operation: "list_strips" }} />
-        <OperationButton label="Timeline Info" icon={Play} params={{ operation: "get_timeline_info" }} />
-        <OperationButton label="Clear All" icon={Trash2} params={{ operation: "clear_vse" }} variant="danger" />
+        <OperationButton
+          label="Timeline Info"
+          icon={Play}
+          params={{ operation: "get_timeline_info" }}
+        />
+        <OperationButton
+          label="Clear All"
+          icon={Trash2}
+          params={{ operation: "clear_vse" }}
+          variant="danger"
+        />
         <button
           type="button"
           disabled={loading}
-          onClick={() => { refreshStrips(); refreshTimeline(); }}
+          onClick={() => {
+            refreshStrips();
+            refreshTimeline();
+          }}
           className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
         >
           <Video className="w-4 h-4" />
@@ -136,37 +148,54 @@ export default function VideoEditor() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Movie File Path</label>
+            <label htmlFor="movie-file-path" className="text-xs font-medium text-muted-foreground">
+              Movie File Path
+            </label>
             <div className="flex space-x-2">
               <input
+                id="movie-file-path"
                 type="text"
                 value={moviePath}
                 onChange={(e) => setMoviePath(e.target.value)}
                 placeholder="C:/footage/clip.mp4"
                 className="flex-1 px-3 py-2 bg-secondary rounded-lg text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <OperationButton label="Add Movie" icon={Video} params={{ operation: "add_movie", filepath: moviePath, channel: 1 }} />
+              <OperationButton
+                label="Add Movie"
+                icon={Video}
+                params={{ operation: "add_movie", filepath: moviePath, channel: 1 }}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Audio File Path</label>
+            <label htmlFor="audio-file-path" className="text-xs font-medium text-muted-foreground">
+              Audio File Path
+            </label>
             <div className="flex space-x-2">
               <input
+                id="audio-file-path"
                 type="text"
                 value={soundPath}
                 onChange={(e) => setSoundPath(e.target.value)}
                 placeholder="C:/audio/bgm.wav"
                 className="flex-1 px-3 py-2 bg-secondary rounded-lg text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <OperationButton label="Add Sound" icon={Music} params={{ operation: "add_sound", filepath: soundPath, channel: 5 }} />
+              <OperationButton
+                label="Add Sound"
+                icon={Music}
+                params={{ operation: "add_sound", filepath: soundPath, channel: 5 }}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Text Overlay</label>
+            <label htmlFor="text-overlay" className="text-xs font-medium text-muted-foreground">
+              Text Overlay
+            </label>
             <div className="flex space-x-2">
               <input
+                id="text-overlay"
                 type="text"
                 value={textContent}
                 onChange={(e) => setTextContent(e.target.value)}
@@ -176,7 +205,13 @@ export default function VideoEditor() {
               <OperationButton
                 label="Add Text"
                 icon={Scissors}
-                params={{ operation: "add_text", text: textContent, channel: 3, length: 120, font_size: 48 }}
+                params={{
+                  operation: "add_text",
+                  text: textContent,
+                  channel: 3,
+                  length: 120,
+                  font_size: 48,
+                }}
               />
             </div>
           </div>
@@ -191,7 +226,9 @@ export default function VideoEditor() {
         </h2>
 
         {strips.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No strips. Add a movie, sound, or text strip to get started.</p>
+          <p className="text-sm text-muted-foreground">
+            No strips. Add a movie, sound, or text strip to get started.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -246,8 +283,11 @@ export default function VideoEditor() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Output Path</label>
+            <label htmlFor="output-path" className="text-xs font-medium text-muted-foreground">
+              Output Path
+            </label>
             <input
+              id="output-path"
               type="text"
               value={outPath}
               onChange={(e) => setOutPath(e.target.value)}
@@ -255,8 +295,11 @@ export default function VideoEditor() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">FPS</label>
+            <label htmlFor="render-fps" className="text-xs font-medium text-muted-foreground">
+              FPS
+            </label>
             <select
+              id="render-fps"
               value={renderFps}
               onChange={(e) => setRenderFps(Number(e.target.value))}
               className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary"

@@ -10,6 +10,10 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 from ..app import get_app
 
 
@@ -17,7 +21,7 @@ def _register_splatting_tools():
     """Register splatting tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_splatting(
         operation: Literal[
             "import_gs",
@@ -72,6 +76,14 @@ def _register_splatting_tools():
             - blender_splatting("crop_and_clean", radius=10.0) - Clean up splat
             - blender_splatting("generate_collision_mesh") - Create collision geometry
             - blender_splatting("export_for_resonite") - Export for Resonite
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_splatting", {"operation": "import_gs", "file_path": "scan.ply"})
+        ```
         """
         logger.info(
             f"blender_splatting called with operation='{operation}', file_path='{file_path}', "

@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_sculpt_tools() -> None:
     from blender_mcp.app import get_app
@@ -23,7 +27,7 @@ def _register_sculpt_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_sculpt(
         operation: str = "enter",
         object_name: str = "",
@@ -50,6 +54,14 @@ def _register_sculpt_tools() -> None:
         - mask_clear: clear sculpt mask
         - remesh_voxel: apply voxel remesh modifier
         - list_brushes: common sculpt brush names
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_sculpt", {"operation": "enter", "object_name": "Cube"})
+        ```
         """
         try:
             if operation == "list_brushes":

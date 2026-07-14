@@ -55,7 +55,7 @@ export default function Construct() {
     } catch {
       // use defaults
     }
-    let response;
+    let response: Awaited<ReturnType<typeof apiGenerateBlenderScript>> | undefined;
     try {
       response = await apiGenerateBlenderScript(prompt.trim(), model, ollamaUrl);
     } catch (callErr) {

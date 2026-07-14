@@ -9,21 +9,34 @@ from blender_mcp.app import get_app
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 _config_store: dict[str, Any] = {}
 
 
 def _register_config_tools():
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def config_get() -> str:
-        """Return current webapp config (LLM provider, URLs, selected model, etc.)."""
+        """Return current webapp config (LLM provider, URLs, selected model, etc.).
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("config_get")
+        ```
+        """
         import json
 
         out = _config_store if _config_store else {}
         return json.dumps(out)
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def config_set(
         server_host: str | None = None,
         server_port: int | None = None,
@@ -32,7 +45,16 @@ def _register_config_tools():
         notifications: bool | None = None,
         llm: dict[str, Any] | None = None,
     ) -> str:
-        """Update webapp config. Pass keys: server_host, server_port, theme, auto_sync, notifications, llm."""
+        """Update webapp config. Pass keys: server_host, server_port, theme, auto_sync, notifications, llm.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("config_set", {"theme": "dark"})
+        ```
+        """
         import json
 
         global _config_store

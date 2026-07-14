@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_compositor_tools() -> None:
     from blender_mcp.app import get_app
@@ -19,7 +23,7 @@ def _register_compositor_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_compositor(
         operation: str = "enable",
         node_type: str = "CompositorNodeBlur",
@@ -43,6 +47,14 @@ def _register_compositor_tools() -> None:
         - add_node: add a compositor node
         - connect_nodes: connect two compositor nodes
         - glow: add a glow/glare effect chain
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_compositor", {"operation": "enable"})
+        ```
         """
         try:
             if operation == "enable":

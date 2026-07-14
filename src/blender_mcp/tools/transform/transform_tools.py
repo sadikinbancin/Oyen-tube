@@ -7,12 +7,15 @@ Provides tools for positioning, rotating, and scaling objects.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 def _register_transform_tools():
     """Register all transform-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_transform(
         operation: str = "set_location",
         object_names: str | list[str] = "",
@@ -52,6 +55,14 @@ def _register_transform_tools():
 
         Returns:
             Success message with transform details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_transform", {"operation": "set_location", "object_names": "Cube", "x": 0, "y": 0, "z": 2})
+        ```
         """
         from blender_mcp.handlers.transform_handler import apply_transform, set_transform
 

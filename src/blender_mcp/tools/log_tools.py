@@ -7,14 +7,22 @@ Single tool: view logs or log buffer statistics.
 import logging
 from typing import Literal
 
+from fastmcp.server.server import ToolResult
+from prefab_ui import PrefabApp
+from prefab_ui.components import Heading, Row
+
 from ..app import app
 from ..compat import *
 from ..utils.error_handling import MCPError
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
-@app.tool
+
+@app.tool(annotations=_READ_ONLY)
 async def blender_logs(
     operation: Literal["view", "stats"] = "view",
     level_filter: str | None = None,
@@ -38,8 +46,16 @@ async def blender_logs(
         since_minutes: For view - logs from last N minutes
         include_details: For view - include function/line in output
 
-    Returns:
-        Formatted log view or statistics string
+        Returns:
+            Formatted log view or statistics string
+
+        ## Return Format
+        Formatted string with log entries or statistics
+
+        ## Examples
+        ```python
+        await call_tool("blender_logs", {"operation": "view", "limit": 20})
+        ```
     """
     from ..server import _memory_logs, get_recent_logs
 
@@ -136,3 +152,37 @@ async def blender_logs(
     except Exception as e:
         logger.error(f"Error viewing logs: {e!s}")
         return f"Error retrieving logs: {e!s}"
+
+
+@app.tool(app=True, annotations=_READ_ONLY)
+async def show_logs_app(
+    limit: int = 20,
+    level_filter: str | None = None,
+) -> ToolResult:
+    """Show recent log entries as a scrollable Prefab card.
+
+    ## Return Format
+    Prefab card with timestamped log entries
+
+    ## Examples
+    ```python
+    await call_tool("show_logs_app", {"limit": 10})
+    ```
+    """
+    from ..server import get_recent_logs
+
+    logs = get_recent_logs(limit=limit, level_filter=level_filter)
+
+    with PrefabApp(title="Blender MCP Logs") as card:
+        Heading(f"Recent Entries ({len(logs)})")
+        for log in logs:
+            ts = log["timestamp"].strftime("%H:%M:%S")
+            Row(
+                label=f"{ts} [{log['level']}]",
+                value=log["message"][:100],
+            )
+
+    return ToolResult(
+        content=f"{len(logs)} log entries shown",
+        structured_content=card,
+    )

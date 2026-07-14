@@ -10,6 +10,10 @@ from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -21,7 +25,7 @@ def _register_export_presets_tools():
     """Register export presets tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_export_presets(
         operation: Literal[
             "export_with_preset",
@@ -75,6 +79,14 @@ def _register_export_presets_tools():
             - blender_export_presets("validate_export_preset", target_objects=["Avatar"], platform="RESONITE") - Validate for Resonite
             - blender_export_presets("get_platform_presets") - List available platforms
             - blender_export_presets("create_custom_preset", preset_name="MyCustom", base_platform="VRCHAT") - Create custom preset
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_export_presets", {"operation": "export_with_preset", "platform": "VRCHAT"})
+        ```
         """
         logger.info(f"blender_export_presets called with operation='{operation}', platform='{platform}'")
 

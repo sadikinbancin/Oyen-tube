@@ -22,6 +22,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 # Single managed Blender GUI process (one at a time)
 _blender_process: subprocess.Popen | None = None
 _blender_pid: int | None = None
@@ -45,7 +49,7 @@ def _register_session_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_session(
         operation: str = "status",
         blend_file: str = "",
@@ -76,6 +80,14 @@ def _register_session_tools() -> None:
 
         Returns:
             Dict with success, message, and operation-specific fields.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_session", {"operation": "status"})
+        ```
         """
         global _blender_process, _blender_pid
 

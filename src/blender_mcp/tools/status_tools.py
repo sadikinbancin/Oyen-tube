@@ -13,8 +13,15 @@ from datetime import datetime
 from typing import Literal
 
 import psutil
+from fastmcp.server.server import ToolResult
+from prefab_ui import PrefabApp
+from prefab_ui.components import Heading, Row
 
 from ..compat import *
+
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 
 def _register_status_tools():
@@ -23,7 +30,7 @@ def _register_status_tools():
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def blender_status(
         operation: Literal["status", "system_info", "health_check", "performance_monitor"] = "status",
         include_blender_info: bool = True,
@@ -49,6 +56,14 @@ def _register_status_tools():
             include_performance: For status — include performance section
             duration_seconds: For performance_monitor — sampling duration (1-60)
             format: "json" for webapp dict (status only); "text" for report string
+
+        ## Return Format
+        Formatted status report or JSON string
+
+        ## Examples
+        ```python
+        await call_tool("blender_status", {"operation": "status"})
+        ```
         """
 
         # ------------------------------------------------------------------
@@ -241,9 +256,18 @@ def _register_status_tools():
         else:
             return f"Unknown operation '{operation}'. Use: status, system_info, health_check, performance_monitor"
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def server_info() -> str:
-        """Return Blender MCP server information, version, and status."""
+        """Return Blender MCP server information, version, and status.
+
+        ## Return Format
+        JSON string with keys: name, version, status, blender_executable, blender_status, platform, python_version
+
+        ## Examples
+        ```python
+        await call_tool("server_info")
+        ```
+        """
         try:
             from blender_mcp import __version__
             from blender_mcp.config import BLENDER_EXECUTABLE, validate_blender_executable
@@ -262,6 +286,49 @@ def _register_status_tools():
             )
         except Exception as e:
             return json.dumps({"status": "error", "message": str(e)})
+
+    @app.tool(app=True, annotations=_READ_ONLY)
+    async def show_blender_status_app() -> ToolResult:
+        """Show Blender MCP server status as a rich dashboard card.
+
+        ## Return Format
+        Prefab card with KPIs and system status
+
+        ## Examples
+        ```python
+        await call_tool("show_blender_status_app")
+        ```
+        """
+        from blender_mcp import __version__
+        from blender_mcp.config import validate_blender_executable
+
+        blender_ok = validate_blender_executable()
+
+        with PrefabApp(title="Blender MCP Status") as card:
+            Heading("Server")
+            Row(label="Version", value=__version__)
+            Row(label="Status", value="Running")
+            Row(label="Blender", value="Connected" if blender_ok else "Not found")
+
+            Heading("System")
+            Row(label="Platform", value=f"{platform.system()} {platform.release()}")
+            Row(label="Python", value=sys.version.split()[0])
+
+            Heading("Performance")
+            try:
+                cpu = psutil.cpu_percent(interval=0.5)
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage("/")
+                Row(label="CPU", value=f"{cpu:.1f}%")
+                Row(label="Memory", value=f"{mem.percent:.1f}% ({mem.available // 1024**2:,} MB free)")
+                Row(label="Disk", value=f"{disk.percent:.1f}% ({disk.free // 1024**3:.1f} GB free)")
+            except Exception:
+                Row(label="Performance", value="Unavailable")
+
+        return ToolResult(
+            content=f"Blender MCP Status — Version {__version__}, Blender {'connected' if blender_ok else 'not found'}",
+            structured_content=card,
+        )
 
 
 _register_status_tools()

@@ -23,22 +23,39 @@ export default function StoryboardPage() {
     setLoading(true);
     try {
       const r = await callTool("blender_grease_pencil", { operation: "create", name: gpName });
-      setOutput(r.success ? `Storyboard '${gpName}' created with ${shotCount} shots` : String(r.error ?? "Failed"));
+      setOutput(
+        r.success
+          ? `Storyboard '${gpName}' created with ${shotCount} shots`
+          : String(r.error ?? "Failed"),
+      );
     } finally {
       setLoading(false);
     }
   }, [gpName, shotCount]);
 
-  const OpButton = ({ label, icon: Icon, params, variant = "default" }: {
-    label: string; icon: React.ElementType; params: Record<string, unknown>; variant?: "default" | "danger";
+  const OpButton = ({
+    label,
+    icon: Icon,
+    params,
+    variant = "default",
+  }: {
+    label: string;
+    icon: React.ElementType;
+    params: Record<string, unknown>;
+    variant?: "default" | "danger";
   }) => (
-    <button type="button" disabled={loading} onClick={() => runGp(params)}
+    <button
+      type="button"
+      disabled={loading}
+      onClick={() => runGp(params)}
       className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-        variant === "danger" ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+        variant === "danger"
+          ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
           : "bg-accent text-accent-foreground hover:bg-accent/80"
       } disabled:opacity-50`}
     >
-      <Icon className="w-4 h-4" /><span>{label}</span>
+      <Icon className="w-4 h-4" />
+      <span>{label}</span>
     </button>
   );
 
@@ -61,37 +78,77 @@ export default function StoryboardPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Storyboard Name</label>
-            <input type="text" value={gpName} onChange={(e) => setGpName(e.target.value)}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border" />
+            <label htmlFor="storyboard-name" className="text-xs font-medium text-muted-foreground">
+              Storyboard Name
+            </label>
+            <input
+              id="storyboard-name"
+              type="text"
+              value={gpName}
+              onChange={(e) => setGpName(e.target.value)}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Shot Count</label>
-            <input type="number" value={shotCount} onChange={(e) => setShotCount(Number(e.target.value))} min={1} max={100}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border" />
+            <label htmlFor="shot-count" className="text-xs font-medium text-muted-foreground">
+              Shot Count
+            </label>
+            <input
+              id="shot-count"
+              type="number"
+              value={shotCount}
+              onChange={(e) => setShotCount(Number(e.target.value))}
+              min={1}
+              max={100}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            />
           </div>
           <div className="flex items-end">
-            <button type="button" onClick={createStoryboard} disabled={loading}
+            <button
+              type="button"
+              onClick={createStoryboard}
+              disabled={loading}
               className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" /><span>Create</span>
+              <Plus className="w-4 h-4" />
+              <span>Create</span>
             </button>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <OpButton label="List Layers" icon={Square} params={{ operation: "list_layers", gp_object: gpName }} />
-        <OpButton label="Onion Skin" icon={Image} params={{ operation: "onion_skinning", gp_object: gpName, before_frames: 2, after_frames: 2 }} />
+        <OpButton
+          label="List Layers"
+          icon={Square}
+          params={{ operation: "list_layers", gp_object: gpName }}
+        />
+        <OpButton
+          label="Onion Skin"
+          icon={Image}
+          params={{
+            operation: "onion_skinning",
+            gp_object: gpName,
+            before_frames: 2,
+            after_frames: 2,
+          }}
+        />
       </div>
 
       <div className="border border-border rounded-lg p-4 space-y-4 bg-card">
         <h2 className="font-semibold">Shot Management</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Shot Name</label>
-            <input type="text" value={shotName} onChange={(e) => setShotName(e.target.value)}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border" />
+            <label htmlFor="shot-name" className="text-xs font-medium text-muted-foreground">
+              Shot Name
+            </label>
+            <input
+              id="shot-name"
+              type="text"
+              value={shotName}
+              onChange={(e) => setShotName(e.target.value)}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            />
           </div>
         </div>
       </div>
@@ -101,7 +158,12 @@ export default function StoryboardPage() {
           <Trash2 className="w-4 h-4" />
           <span>Cleanup</span>
         </h2>
-        <OpButton label="Delete Storyboard" icon={Trash2} params={{ operation: "delete_strokes", gp_object: gpName }} variant="danger" />
+        <OpButton
+          label="Delete Storyboard"
+          icon={Trash2}
+          params={{ operation: "delete_strokes", gp_object: gpName }}
+          variant="danger"
+        />
       </div>
 
       {output && (

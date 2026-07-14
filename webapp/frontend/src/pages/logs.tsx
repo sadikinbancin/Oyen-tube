@@ -94,12 +94,18 @@ export default function LogsPage() {
     if (tail && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [logs, tail]);
+  }, [tail]);
 
   const exportLogs = (format: "json" | "csv") => {
-    const data = format === "json"
-      ? JSON.stringify(logs, null, 2)
-      : ["timestamp,level,name,message", ...logs.map((l) => `${l.timestamp},${l.level},"${l.name}","${l.message.replace(/"/g, '""')}"`)].join("\n");
+    const data =
+      format === "json"
+        ? JSON.stringify(logs, null, 2)
+        : [
+            "timestamp,level,name,message",
+            ...logs.map(
+              (l) => `${l.timestamp},${l.level},"${l.name}","${l.message.replace(/"/g, '""')}"`,
+            ),
+          ].join("\n");
     const blob = new Blob([data], { type: format === "json" ? "application/json" : "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -116,7 +122,10 @@ export default function LogsPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto h-[calc(100vh-4rem)] flex flex-col">
+    <div
+      className="p-6 max-w-6xl mx-auto h-[calc(100vh-4rem)] flex flex-col"
+      data-testid="logs-page"
+    >
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-1 flex items-center gap-2">
@@ -129,7 +138,7 @@ export default function LogsPage() {
           <button
             type="button"
             onClick={() => exportLogs("json")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             JSON
@@ -137,7 +146,7 @@ export default function LogsPage() {
           <button
             type="button"
             onClick={() => exportLogs("csv")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             CSV
@@ -146,7 +155,7 @@ export default function LogsPage() {
             type="button"
             onClick={fetchLogs}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -158,14 +167,14 @@ export default function LogsPage() {
       <div className="bg-card border border-border rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
           <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground font-medium">Level:</span>
+          <span className="text-sm text-muted-foreground font-medium">Level:</span>
           <div className="flex gap-1">
             {LEVELS.map((lvl) => (
               <button
                 key={lvl}
                 type="button"
                 onClick={() => setLevelFilter(lvl)}
-                className={`text-xs px-2 py-0.5 rounded font-medium transition-colors ${
+                className={`text-sm px-2 py-0.5 rounded font-medium transition-colors ${
                   levelFilter === lvl
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:text-foreground"
@@ -180,14 +189,14 @@ export default function LogsPage() {
         <div className="w-px h-5 bg-border" />
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-medium">Time:</span>
+          <span className="text-sm text-muted-foreground font-medium">Time:</span>
           <div className="flex gap-1">
             {TIME_PRESETS.map((preset) => (
               <button
                 key={preset.value}
                 type="button"
                 onClick={() => setSinceMinutes(preset.value)}
-                className={`text-xs px-2 py-0.5 rounded font-medium transition-colors ${
+                className={`text-sm px-2 py-0.5 rounded font-medium transition-colors ${
                   sinceMinutes === preset.value
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:text-foreground"
@@ -208,7 +217,7 @@ export default function LogsPage() {
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search messages..."
-            className="w-full pl-8 pr-2 py-1 text-xs bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full pl-8 pr-2 py-1 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 
@@ -218,12 +227,12 @@ export default function LogsPage() {
             value={moduleFilter}
             onChange={(e) => setModuleFilter(e.target.value)}
             placeholder="Module filter..."
-            className="w-full pl-2 pr-2 py-1 text-xs bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full pl-2 pr-2 py-1 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -232,7 +241,7 @@ export default function LogsPage() {
             />
             Auto-refresh
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={tail}
@@ -250,12 +259,12 @@ export default function LogsPage() {
         className="flex-1 bg-[#0d1117] border border-border rounded-lg overflow-y-auto font-mono text-sm"
       >
         {logs.length === 0 && !loading && (
-          <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
+          <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
             No logs match the current filters.
           </div>
         )}
         {logs.length === 0 && loading && (
-          <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
+          <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
             Loading logs...
           </div>
         )}
@@ -268,11 +277,16 @@ export default function LogsPage() {
               <span className="text-muted-foreground/50 shrink-0 text-[11px] leading-5 select-none w-[80px]">
                 {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ""}
               </span>
-              <span className={`shrink-0 flex items-center gap-1 w-[80px] text-[11px] leading-5 ${LEVEL_COLORS[log.level] ?? "text-gray-400"}`}>
+              <span
+                className={`shrink-0 flex items-center gap-1 w-[80px] text-[11px] leading-5 ${LEVEL_COLORS[log.level] ?? "text-gray-400"}`}
+              >
                 {levelIcon(log.level)}
                 {log.level}
               </span>
-              <span className="text-muted-foreground/50 shrink-0 text-[11px] leading-5 hidden lg:inline w-auto max-w-[200px] truncate" title={log.name}>
+              <span
+                className="text-muted-foreground/50 shrink-0 text-[11px] leading-5 hidden lg:inline w-auto max-w-[200px] truncate"
+                title={log.name}
+              >
                 {log.name}
               </span>
               <span className="text-gray-300 leading-5 break-all flex-1 min-w-0">
@@ -284,7 +298,7 @@ export default function LogsPage() {
       </div>
 
       {/* Footer bar */}
-      <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between mt-2 text-sm text-muted-foreground">
         <span>{logs.length} log entries</span>
         <span className="text-muted-foreground/50">
           {autoRefresh ? "Auto-refreshing every 5s" : "Auto-refresh off"}

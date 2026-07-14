@@ -10,6 +10,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 SKILL_PATH = Path(__file__).resolve().parent.parent.parent.parent / "skills" / "blender-expert" / "SKILL.md"
 
 
@@ -28,7 +32,7 @@ def _register_chat_tools():
 
     app = get_app()
 
-    @app.tool()
+    @app.tool(annotations=_READ_ONLY)
     async def ai_chat(ctx: Context, message: str) -> dict:
         """Chat with the Blender AI assistant. Provides natural-language help with Blender operations.
 
@@ -37,6 +41,14 @@ def _register_chat_tools():
 
         Args:
             message: The user's chat message.
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("ai_chat", {"message": "How do I create a cube?"})
+        ```
         """
         if not message or not message.strip():
             return {"success": False, "data": {"response": "Please provide a message."}}

@@ -26,8 +26,16 @@ export default function GreasePencilPage() {
 
   const color = [colorR / 255, colorG / 255, colorB / 255, 1.0];
 
-  const OpButton = ({ label, icon: Icon, params, variant = "default" }: {
-    label: string; icon: React.ElementType; params: Record<string, unknown>; variant?: "default" | "danger";
+  const OpButton = ({
+    label,
+    icon: Icon,
+    params,
+    variant = "default",
+  }: {
+    label: string;
+    icon: React.ElementType;
+    params: Record<string, unknown>;
+    variant?: "default" | "danger";
   }) => (
     <button
       type="button"
@@ -58,9 +66,27 @@ export default function GreasePencilPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <OpButton label="Create GP" icon={Pen} params={{ operation: "create", name: gpName }} />
-        <OpButton label="List Layers" icon={Square} params={{ operation: "list_layers", gp_object: gpName }} />
-        <OpButton label="Delete All Strokes" icon={Eraser} params={{ operation: "delete_strokes", gp_object: gpName, layer_name: layerName }} variant="danger" />
-        <OpButton label="Onion Skin On" icon={Circle} params={{ operation: "onion_skinning", gp_object: gpName, before_frames: 3, after_frames: 3 }} />
+        <OpButton
+          label="List Layers"
+          icon={Square}
+          params={{ operation: "list_layers", gp_object: gpName }}
+        />
+        <OpButton
+          label="Delete All Strokes"
+          icon={Eraser}
+          params={{ operation: "delete_strokes", gp_object: gpName, layer_name: layerName }}
+          variant="danger"
+        />
+        <OpButton
+          label="Onion Skin On"
+          icon={Circle}
+          params={{
+            operation: "onion_skinning",
+            gp_object: gpName,
+            before_frames: 3,
+            after_frames: 3,
+          }}
+        />
       </div>
 
       <div className="border border-border rounded-lg p-4 space-y-4 bg-card">
@@ -70,9 +96,14 @@ export default function GreasePencilPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Object Name</label>
+            <label htmlFor="gp-object-name" className="text-xs font-medium text-muted-foreground">
+              Object Name
+            </label>
             <input
-              type="text" value={gpName} onChange={(e) => setGpName(e.target.value)}
+              id="gp-object-name"
+              type="text"
+              value={gpName}
+              onChange={(e) => setGpName(e.target.value)}
               className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
             />
           </div>
@@ -89,9 +120,15 @@ export default function GreasePencilPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Stroke Type</label>
-            <select value={strokeType} onChange={(e) => setStrokeType(e.target.value)}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border">
+            <label htmlFor="stroke-type" className="text-xs font-medium text-muted-foreground">
+              Stroke Type
+            </label>
+            <select
+              id="stroke-type"
+              value={strokeType}
+              onChange={(e) => setStrokeType(e.target.value)}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            >
               <option value="LINE">Line</option>
               <option value="BOX">Box</option>
               <option value="CIRCLE">Circle</option>
@@ -100,43 +137,112 @@ export default function GreasePencilPage() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Thickness</label>
-            <input type="number" value={thickness} onChange={(e) => setThickness(Number(e.target.value))} min={0.1} step={0.5}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border" />
+            <label htmlFor="thickness" className="text-xs font-medium text-muted-foreground">
+              Thickness
+            </label>
+            <input
+              id="thickness"
+              type="number"
+              value={thickness}
+              onChange={(e) => setThickness(Number(e.target.value))}
+              min={0.1}
+              step={0.5}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Radius (Circle)</label>
-            <input type="number" value={radius} onChange={(e) => setRadius(Number(e.target.value))} min={0.1} step={0.5}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border" />
+            <label htmlFor="radius" className="text-xs font-medium text-muted-foreground">
+              Radius (Circle)
+            </label>
+            <input
+              id="radius"
+              type="number"
+              value={radius}
+              onChange={(e) => setRadius(Number(e.target.value))}
+              min={0.1}
+              step={0.5}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Layer</label>
-            <input type="text" value={layerName} onChange={(e) => setLayerName(e.target.value)}
-              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border" />
+            <label htmlFor="gp-layer" className="text-xs font-medium text-muted-foreground">
+              Layer
+            </label>
+            <input
+              id="gp-layer"
+              type="text"
+              value={layerName}
+              onChange={(e) => setLayerName(e.target.value)}
+              className="w-full px-3 py-2 bg-secondary rounded-lg text-sm border border-border"
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Stroke Color (RGB 0-255)</label>
+            <label htmlFor="stroke-color-r" className="text-xs font-medium text-muted-foreground">
+              Stroke Color (RGB 0-255)
+            </label>
             <div className="flex space-x-2">
-              <input type="number" value={colorR} onChange={(e) => setColorR(Number(e.target.value))} min={0} max={255}
-                className="w-12 px-2 py-2 bg-secondary rounded-lg text-sm border border-border text-center" placeholder="R" />
-              <input type="number" value={colorG} onChange={(e) => setColorG(Number(e.target.value))} min={0} max={255}
-                className="w-12 px-2 py-2 bg-secondary rounded-lg text-sm border border-border text-center" placeholder="G" />
-              <input type="number" value={colorB} onChange={(e) => setColorB(Number(e.target.value))} min={0} max={255}
-                className="w-12 px-2 py-2 bg-secondary rounded-lg text-sm border border-border text-center" placeholder="B" />
-              <div className="w-8 h-8 rounded border border-border" style={{ backgroundColor: `rgb(${colorR},${colorG},${colorB})` }} />
+              <input
+                id="stroke-color-r"
+                type="number"
+                value={colorR}
+                onChange={(e) => setColorR(Number(e.target.value))}
+                min={0}
+                max={255}
+                className="w-12 px-2 py-2 bg-secondary rounded-lg text-sm border border-border text-center"
+                placeholder="R"
+              />
+              <input
+                id="stroke-color-g"
+                type="number"
+                value={colorG}
+                onChange={(e) => setColorG(Number(e.target.value))}
+                min={0}
+                max={255}
+                className="w-12 px-2 py-2 bg-secondary rounded-lg text-sm border border-border text-center"
+                placeholder="G"
+              />
+              <input
+                id="stroke-color-b"
+                type="number"
+                value={colorB}
+                onChange={(e) => setColorB(Number(e.target.value))}
+                min={0}
+                max={255}
+                className="w-12 px-2 py-2 bg-secondary rounded-lg text-sm border border-border text-center"
+                placeholder="B"
+              />
+              <div
+                className="w-8 h-8 rounded border border-border"
+                style={{ backgroundColor: `rgb(${colorR},${colorG},${colorB})` }}
+              />
             </div>
           </div>
           <div className="flex items-end space-x-2">
-            <OpButton label="Draw" icon={Pen} params={{
-              operation: "draw_stroke", gp_object: gpName, stroke_type: strokeType,
-              color, thickness, layer_name: layerName, radius,
-            }} />
-            <OpButton label="Set Material" icon={Circle} params={{
-              operation: "set_material", gp_object: gpName, material_name: `${gpName}_Mat`,
-              color,
-            }} />
+            <OpButton
+              label="Draw"
+              icon={Pen}
+              params={{
+                operation: "draw_stroke",
+                gp_object: gpName,
+                stroke_type: strokeType,
+                color,
+                thickness,
+                layer_name: layerName,
+                radius,
+              }}
+            />
+            <OpButton
+              label="Set Material"
+              icon={Circle}
+              params={{
+                operation: "set_material",
+                gp_object: gpName,
+                material_name: `${gpName}_Mat`,
+                color,
+              }}
+            />
           </div>
         </div>
       </div>
@@ -147,8 +253,16 @@ export default function GreasePencilPage() {
           <span>Convert & Cleanup</span>
         </h2>
         <div className="flex flex-wrap gap-2">
-          <OpButton label="Convert to Mesh" icon={Square} params={{ operation: "convert", gp_object: gpName, target_type: "MESH" }} />
-          <OpButton label="Convert to Curve" icon={Minus} params={{ operation: "convert", gp_object: gpName, target_type: "CURVE" }} />
+          <OpButton
+            label="Convert to Mesh"
+            icon={Square}
+            params={{ operation: "convert", gp_object: gpName, target_type: "MESH" }}
+          />
+          <OpButton
+            label="Convert to Curve"
+            icon={Minus}
+            params={{ operation: "convert", gp_object: gpName, target_type: "CURVE" }}
+          />
         </div>
       </div>
 

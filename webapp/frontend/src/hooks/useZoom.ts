@@ -6,7 +6,7 @@ export function useZoom() {
   const [zoomIndex, setZoomIndex] = useState(() => {
     try {
       const saved = localStorage.getItem("tauri-zoom");
-      return saved ? ZOOM_LEVELS.indexOf(parseFloat(saved)) : 0;
+      return saved ? ZOOM_LEVELS.indexOf(Number.parseFloat(saved)) : 0;
     } catch {
       return 0;
     }
@@ -16,7 +16,8 @@ export function useZoom() {
     localStorage.setItem("tauri-zoom", String(level));
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await (getCurrentWindow() as any).setZoom(level);
+      const win: { setZoom: (level: number) => Promise<void> } = getCurrentWindow() as never;
+      await win.setZoom(level);
     } catch {
       // Dev browser fallback: CSS scale on root
       const root = document.documentElement;
@@ -33,16 +34,14 @@ export function useZoom() {
       e.preventDefault();
       setZoomIndex((prev) => {
         const next =
-          e.deltaY < 0
-            ? Math.min(prev + 1, ZOOM_LEVELS.length - 1)
-            : Math.max(prev - 1, 0);
+          e.deltaY < 0 ? Math.min(prev + 1, ZOOM_LEVELS.length - 1) : Math.max(prev - 1, 0);
         if (next !== prev) applyZoom(ZOOM_LEVELS[next]);
         return next;
       });
     };
     window.addEventListener("wheel", handler, { passive: false });
     const saved = localStorage.getItem("tauri-zoom");
-    if (saved) applyZoom(parseFloat(saved));
+    if (saved) applyZoom(Number.parseFloat(saved));
     return () => window.removeEventListener("wheel", handler);
   }, [applyZoom]);
 

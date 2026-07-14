@@ -10,6 +10,10 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -21,7 +25,7 @@ def _register_materials_baking_tools():
     """Register materials baking tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_materials_baking(
         operation: Literal[
             "bake_toon_to_pbr",
@@ -65,6 +69,14 @@ def _register_materials_baking_tools():
             - blender_materials_baking("bake_toon_to_pbr") - Convert to PBR textures
             - blender_materials_baking("consolidate_materials") - Merge materials into atlas
             - blender_materials_baking("convert_vrm_shaders") - Convert VRM materials to PBR
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_materials_baking", {"operation": "bake_toon_to_pbr", "resolution": 2048})
+        ```
         """
         logger.info(
             f"blender_materials_baking called with operation='{operation}', "

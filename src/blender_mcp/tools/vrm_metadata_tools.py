@@ -10,6 +10,10 @@ from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -21,7 +25,7 @@ def _register_vrm_metadata_tools():
     """Register VRM metadata tools with the app."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_vrm_metadata(
         operation: Literal[
             "set_first_person_offset",
@@ -78,6 +82,14 @@ def _register_vrm_metadata_tools():
             - blender_vrm_metadata("setup_blink_viseme_mappings") - Configure facial animations
             - blender_vrm_metadata("configure_spring_bones") - Setup hair/cloth physics
             - blender_vrm_metadata("export_vrm_metadata") - Export VRM settings
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_vrm_metadata", {"operation": "set_first_person_offset", "offset_z": 0.15})
+        ```
         """
         logger.info(f"blender_vrm_metadata called with operation='{operation}'")
 

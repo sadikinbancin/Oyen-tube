@@ -162,6 +162,29 @@ async def _diagnostics_endpoint(request):
     disk = psutil.disk_usage(".")
     import platform
 
+    bridge_host = os.environ.get("BLENDER_BRIDGE_HOST", os.environ.get("BLENDER_HOST", "127.0.0.1"))
+    bridge_port = int(os.environ.get("BLENDER_BRIDGE_PORT", "10850"))
+    bridge_alive = False
+    try:
+        import json as _json
+        import socket as _sock
+        import struct as _struct
+
+        s = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect((bridge_host, bridge_port))
+        payload = _json.dumps({"type": "ping"}).encode("utf-8")
+        s.sendall(_struct.pack("!I", len(payload)) + payload)
+        header = s.recv(4)
+        if len(header) == 4:
+            body_len = _struct.unpack("!I", header)[0]
+            body = s.recv(body_len)
+            resp = _json.loads(body.decode("utf-8"))
+            bridge_alive = resp.get("status") == "success"
+        s.close()
+    except Exception:
+        pass
+
     return JSONResponse(
         {
             "server": {
@@ -182,8 +205,10 @@ async def _diagnostics_endpoint(request):
                 "disk_percent": disk.percent,
             },
             "blender": {
-                "connected": False,
-                "bridge_addon": False,
+                "connected": bridge_alive,
+                "bridge_addon": bridge_alive,
+                "bridge_host": bridge_host,
+                "socket_bridge_port": bridge_port,
             },
         }
     )
@@ -230,7 +255,6 @@ async def _skills_detail_endpoint(request):
 asgi_app.router.routes.append(Route("/api/skills", endpoint=_skills_list_endpoint, methods=["GET"]))
 asgi_app.router.routes.append(Route("/api/skills/{name}", endpoint=_skills_detail_endpoint, methods=["GET"]))
 
-_blender_tauri = os.environ.get("BLENDER_TAURI", "").lower() in ("1", "true", "yes")
 asgi_app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -241,7 +265,7 @@ asgi_app.add_middleware(
         "https://tauri.localhost",
         "tauri://localhost",
     ],
-    allow_origin_regex=r"https?://tauri\.localhost(:\d+)?" if _blender_tauri else None,
+    allow_origin_regex=r"https?://(?:[a-zA-Z0-9-]+\.ts\.net|.*?\.tail-[a-f0-9]+\.ts\.net|tauri\.localhost|localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|100\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?$|^tauri://localhost$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

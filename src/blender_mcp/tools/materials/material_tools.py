@@ -8,6 +8,10 @@ from typing import Literal
 
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -19,7 +23,7 @@ def _register_material_tools():
     """Register the blender_materials portmanteau tool."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_materials(
         operation: Literal[
             "create_fabric",
@@ -100,6 +104,14 @@ def _register_material_tools():
 
         Returns:
             Confirmation message about material operation
+
+        ## Return Format
+        Formatted message string with operation result
+
+        ## Examples
+        ```python
+        await call_tool("blender_materials", {"operation": "create_metal", "name": "Gold", "metal_type": "gold"})
+        ```
         """
         from blender_mcp.handlers.material_handler import (
             assign_material_async,

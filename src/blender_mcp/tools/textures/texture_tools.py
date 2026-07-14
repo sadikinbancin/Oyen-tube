@@ -7,12 +7,15 @@ Provides tools for creating procedural and image-based textures.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 def _register_texture_tools():
     """Register all texture-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_textures(
         operation: str = "create_noise",
         name: str = "Texture",
@@ -46,6 +49,14 @@ def _register_texture_tools():
 
         Returns:
             Success message with texture details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_textures", {"operation": "create_noise", "name": "MyTexture"})
+        ```
         """
         from blender_mcp.handlers.texture_handler import (
             assign_texture_to_material,

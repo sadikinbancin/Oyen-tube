@@ -16,9 +16,13 @@ from .app import get_app
 try:
     from fastmcp.server.context import Context
 except ImportError:
-    Context = Any  # type: ignore
+    Context = Any  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 # ---------------------------------------------------------------------------
 # Capability-probe tools (passed to ctx.sample so the LLM can query them)
@@ -180,7 +184,7 @@ def register_agentic_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def agentic_blender_workflow(
         workflow_prompt: str,
         available_operations: list[str] | None = None,
@@ -201,6 +205,14 @@ def register_agentic_tools() -> None:
 
         Returns:
             dict with success, message (final plan), steps taken, and tool_calls log
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("agentic_blender_workflow", {"workflow_prompt": "..."})
+        ```
         """
         if ctx is None:
             return {
@@ -251,7 +263,7 @@ def register_agentic_tools() -> None:
                 "message": "Multi-step sampling failed while generating the 3D workflow plan.",
             }
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def intelligent_3d_processing(
         scenes: list[dict[str, Any]],
         processing_goal: str,
@@ -275,6 +287,14 @@ def register_agentic_tools() -> None:
 
         Returns:
             dict with success, message (processing plan), steps taken, and tool_calls log
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("intelligent_3d_processing", {"scenes": [...], "processing_goal": "..."})
+        ```
         """
         if ctx is None:
             return {
@@ -327,7 +347,7 @@ def register_agentic_tools() -> None:
                 "message": "Multi-step sampling failed while generating the processing plan.",
             }
 
-    @app.tool
+    @app.tool(annotations=_READ_ONLY)
     async def conversational_blender_assistant(
         user_query: str,
         context_level: str = "comprehensive",
@@ -347,6 +367,14 @@ def register_agentic_tools() -> None:
 
         Returns:
             dict with success, message, and next_steps suggestions
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("conversational_blender_assistant", {"user_query": "How do I create a material?"})
+        ```
         """
         _fallbacks = {
             "basic": "I can help you create 3D content with Blender.",

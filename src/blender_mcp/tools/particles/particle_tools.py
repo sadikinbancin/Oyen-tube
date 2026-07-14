@@ -7,12 +7,15 @@ Provides tools for creating particle systems and effects.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 def _register_particle_tools():
     """Register all particle-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_particles(
         operation: str = "create_particle_system",
         object_name: str = "",
@@ -47,6 +50,14 @@ def _register_particle_tools():
 
         Returns:
             Success message with particle system details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_particles", {"operation": "create_particle_system", "object_name": "Cube"})
+        ```
         """
         from blender_mcp.handlers.particle_handler import bake_particles, create_particle_system
 

@@ -7,12 +7,15 @@ Provides tools for rigid body, cloth, soft body, and fluid simulations.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
 
 def _register_physics_tools():
     """Register all physics-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_physics(
         operation: str = "enable_rigid_body",
         object_name: str = "",
@@ -52,6 +55,14 @@ def _register_physics_tools():
 
         Returns:
             Success message with physics setup details
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_physics", {"operation": "enable_rigid_body", "object_name": "Cube"})
+        ```
         """
         from blender_mcp.handlers.physics_handler import (
             add_force_field,

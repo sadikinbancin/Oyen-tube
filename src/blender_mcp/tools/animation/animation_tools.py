@@ -13,12 +13,16 @@ from blender_mcp.compat import *
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_animation_tools():
     """Register all animation-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_animation(
         operation: Literal[
             # Basic keyframes
@@ -204,6 +208,14 @@ def _register_animation_tools():
             Shape keys require mesh objects. Actions work with any animatable object.
             Baking operations are essential for game engine export compatibility.
             Use blender_rigging tools first for character setup before animation.
+
+        ## Return Format
+        Operation result message with success/failure status and details.
+
+        ## Examples
+        ```python
+        await call_tool("blender_animation", {"operation": "set_keyframe", "object_name": "Cube", "frame": 10})
+        ```
         """
         from blender_mcp.handlers.animation_handler import (
             add_bone_constraint,

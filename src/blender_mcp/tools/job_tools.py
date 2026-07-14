@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_job_tools() -> None:
     from blender_mcp.app import get_app
@@ -14,7 +18,7 @@ def _register_job_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_jobs(
         operation: str = "status",
         job_id: str = "",
@@ -32,6 +36,14 @@ def _register_job_tools() -> None:
         - status: poll job by job_id
         - list: recent jobs
         - cancel: cancel pending/running job
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_jobs", {"operation": "submit", "script": "import bpy; print('hello')"})
+        ```
         """
         try:
             if operation == "submit":

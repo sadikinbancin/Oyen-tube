@@ -26,11 +26,15 @@ interface DiagnosticsPayload {
  * Check if backend is reachable (does not use tool bridge).
  * Use to show a clear error when proxy or server is wrong.
  */
-export async function getBackendHealth(): Promise<{ ok: boolean; error?: string; data?: HealthPayload }> {
+export async function getBackendHealth(): Promise<{
+  ok: boolean;
+  error?: string;
+  data?: HealthPayload;
+}> {
   try {
     const r = await fetch(`${API_BASE}/api/v1/health`);
     if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
-    const data = await r.json() as HealthPayload;
+    const data = (await r.json()) as HealthPayload;
     return { ok: true, data };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };

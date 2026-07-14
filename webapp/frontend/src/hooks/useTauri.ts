@@ -34,15 +34,18 @@ export function useTauri() {
   tauriRef.current = tauri;
 
   /** Call a Tauri Rust command. Returns null in dev browser. */
-  const invoke = useCallback(async <T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> => {
-    if (!tauriRef.current) return null;
-    try {
-      const m = await import("@tauri-apps/api/core");
-      return await m.invoke<T>(cmd, args);
-    } catch {
-      return null;
-    }
-  }, []);
+  const invoke = useCallback(
+    async <T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> => {
+      if (!tauriRef.current) return null;
+      try {
+        const m = await import("@tauri-apps/api/core");
+        return await m.invoke<T>(cmd, args);
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
 
   /**
    * Listen for a Tauri event.
@@ -67,13 +70,22 @@ export function useTauri() {
     if (tauriRef.current) {
       try {
         const { open } = await import("@tauri-apps/plugin-dialog");
-        const r = await open({ multiple: false, filters: extensions ? [{ name: "Files", extensions }] : undefined });
+        const r = await open({
+          multiple: false,
+          filters: extensions ? [{ name: "Files", extensions }] : undefined,
+        });
         if (!r) return null;
         const name = r.split(/[/\\]/).pop() || r;
         const { readFile } = await import("@tauri-apps/plugin-fs");
         const uint8 = await readFile(r);
-        return { name, data: uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength), path: r };
-      } catch { return null; }
+        return {
+          name,
+          data: uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength),
+          path: r,
+        };
+      } catch {
+        return null;
+      }
     }
     return new Promise((resolve) => {
       const id = `tauri-file-input-${++fileInputCounter}`;
@@ -84,7 +96,10 @@ export function useTauri() {
       if (extensions) input.accept = extensions.map((e) => `.${e}`).join(",");
       input.onchange = async () => {
         const file = input.files?.[0];
-        if (!file) { resolve(null); return; }
+        if (!file) {
+          resolve(null);
+          return;
+        }
         resolve({ name: file.name, data: await file.arrayBuffer() });
         input.remove();
       };
@@ -109,110 +124,177 @@ export function useTauri() {
           await fs.writeFile(path, new Uint8Array(buf));
         }
         return path;
-      } catch { return null; }
+      } catch {
+        return null;
+      }
     }
-    const blob = typeof opts.content === "string" ? new Blob([opts.content], { type: opts.mimeType || "text/plain" }) : opts.content;
+    const blob =
+      typeof opts.content === "string"
+        ? new Blob([opts.content], { type: opts.mimeType || "text/plain" })
+        : opts.content;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = filename; a.style.display = "none";
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1000);
     return filename;
   }, []);
 
   /** OS toast notification. Falls back to Web Notification API in browser. */
-  const notify = useCallback(async (title: string, body?: string) => {
-    if (!tauri) {
-      try { new Notification(title, { body }); } catch {}
-      return;
-    }
-    try {
-      const m = await import("@tauri-apps/plugin-notification");
-      await m.sendNotification({ title, body });
-    } catch {
-      try { new Notification(title, { body }); } catch {}
-    }
-  }, [tauri]);
+  const notify = useCallback(
+    async (title: string, body?: string) => {
+      if (!tauri) {
+        try {
+          new Notification(title, { body });
+        } catch {}
+        return;
+      }
+      try {
+        const m = await import("@tauri-apps/plugin-notification");
+        await m.sendNotification({ title, body });
+      } catch {
+        try {
+          new Notification(title, { body });
+        } catch {}
+      }
+    },
+    [tauri],
+  );
 
   /** Native confirm dialog. Falls back to window.confirm in browser. */
-  const confirmAction = useCallback(async (msg: string): Promise<boolean> => {
-    if (!tauri) return window.confirm(msg);
-    try {
-      const m = await import("@tauri-apps/plugin-dialog");
-      return await m.ask(msg);
-    } catch { return window.confirm(msg); }
-  }, [tauri]);
+  const confirmAction = useCallback(
+    async (msg: string): Promise<boolean> => {
+      if (!tauri) return window.confirm(msg);
+      try {
+        const m = await import("@tauri-apps/plugin-dialog");
+        return await m.ask(msg);
+      } catch {
+        return window.confirm(msg);
+      }
+    },
+    [tauri],
+  );
 
   /** Native message dialog. Falls back to alert in browser. */
-  const showMessage = useCallback(async (msg: string) => {
-    if (!tauri) { alert(msg); return; }
-    try {
-      const m = await import("@tauri-apps/plugin-dialog");
-      await m.message(msg);
-    } catch { alert(msg); }
-  }, [tauri]);
+  const showMessage = useCallback(
+    async (msg: string) => {
+      if (!tauri) {
+        alert(msg);
+        return;
+      }
+      try {
+        const m = await import("@tauri-apps/plugin-dialog");
+        await m.message(msg);
+      } catch {
+        alert(msg);
+      }
+    },
+    [tauri],
+  );
 
   /** Open URL in default browser. Falls back to window.open in browser. */
-  const openUrl = useCallback(async (url: string) => {
-    if (!tauri) { window.open(url, "_blank"); return; }
-    try {
-      const m = await import("@tauri-apps/plugin-shell");
-      await m.open(url);
-    } catch { window.open(url, "_blank"); }
-  }, [tauri]);
+  const openUrl = useCallback(
+    async (url: string) => {
+      if (!tauri) {
+        window.open(url, "_blank");
+        return;
+      }
+      try {
+        const m = await import("@tauri-apps/plugin-shell");
+        await m.open(url);
+      } catch {
+        window.open(url, "_blank");
+      }
+    },
+    [tauri],
+  );
 
   /** Set window titlebar text. Always updates document.title as fallback. */
-  const setWindowTitle = useCallback(async (title: string) => {
-    document.title = title;
-    if (!tauri) return;
-    try {
-      const m = await import("@tauri-apps/api/window");
-      await m.getCurrentWindow().setTitle(title);
-    } catch {}
-  }, [tauri]);
+  const setWindowTitle = useCallback(
+    async (title: string) => {
+      document.title = title;
+      if (!tauri) return;
+      try {
+        const m = await import("@tauri-apps/api/window");
+        await m.getCurrentWindow().setTitle(title);
+      } catch {}
+    },
+    [tauri],
+  );
 
   /** Copy text to system clipboard. Falls back to navigator.clipboard. */
-  const copyToClipboard = useCallback(async (text: string) => {
-    if (!tauri) {
-      try { await navigator.clipboard.writeText(text); } catch {}
-      return;
-    }
-    try {
-      const m = await import("@tauri-apps/plugin-clipboard-manager");
-      await m.writeText(text);
-    } catch {
-      try { await navigator.clipboard.writeText(text); } catch {}
-    }
-  }, [tauri]);
+  const copyToClipboard = useCallback(
+    async (text: string) => {
+      if (!tauri) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {}
+        return;
+      }
+      try {
+        const m = await import("@tauri-apps/plugin-clipboard-manager");
+        await m.writeText(text);
+      } catch {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {}
+      }
+    },
+    [tauri],
+  );
 
-  const readSettings = useCallback(async <T>(key: string): Promise<T | null> => {
-    if (!tauri) {
-      try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
-    }
-    try {
-      const { readTextFile } = await import("@tauri-apps/plugin-fs");
-      return JSON.parse(await readTextFile(`${key}.json`));
-    } catch { return null; }
-  }, [tauri]);
+  const readSettings = useCallback(
+    async <T>(key: string): Promise<T | null> => {
+      if (!tauri) {
+        try {
+          return JSON.parse(localStorage.getItem(key) ?? "null");
+        } catch {
+          return null;
+        }
+      }
+      try {
+        const { readTextFile } = await import("@tauri-apps/plugin-fs");
+        return JSON.parse(await readTextFile(`${key}.json`));
+      } catch {
+        return null;
+      }
+    },
+    [tauri],
+  );
 
-  const writeSettings = useCallback(async (key: string, data: unknown) => {
-    if (!tauri) {
-      localStorage.setItem(key, JSON.stringify(data));
-      return;
-    }
-    try {
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-      await writeTextFile(`${key}.json`, JSON.stringify(data, null, 2));
-    } catch {}
-  }, [tauri]);
+  const writeSettings = useCallback(
+    async (key: string, data: unknown) => {
+      if (!tauri) {
+        localStorage.setItem(key, JSON.stringify(data));
+        return;
+      }
+      try {
+        const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+        await writeTextFile(`${key}.json`, JSON.stringify(data, null, 2));
+      } catch {}
+    },
+    [tauri],
+  );
 
   return {
     isTauri: tauri,
-    invoke, listen,
-    openFile, saveFile, notify,
-    confirmAction, showMessage,
-    openUrl, setWindowTitle,
+    invoke,
+    listen,
+    openFile,
+    saveFile,
+    notify,
+    confirmAction,
+    showMessage,
+    openUrl,
+    setWindowTitle,
     copyToClipboard,
-    readSettings, writeSettings,
+    readSettings,
+    writeSettings,
   };
 }

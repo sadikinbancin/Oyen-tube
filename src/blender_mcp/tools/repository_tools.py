@@ -19,6 +19,11 @@ from pydantic import BaseModel
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
+
 # Import validation from construct_tools
 from .construct_tools import (
     _extract_python_code,
@@ -32,7 +37,7 @@ from .construct_tools import (
 try:
     from fastmcp.types import Context
 except ImportError:
-    from typing import Any as Context  # type: ignore
+    from typing import Any as Context  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -789,7 +794,7 @@ EXPORT_ENGINES: dict[str, PlatformExportEngine] = {
 def _register_repository_tools() -> None:
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def manage_object_repo(
         operation: str = "list_objects",
         object_name: str = "",
@@ -819,6 +824,14 @@ def _register_repository_tools() -> None:
         - list_objects: return full index
 
         Repository location: ~/.blender-mcp/repository/
+
+        ## Return Format
+        Standard dict with keys: success, message, objects
+
+        ## Examples
+        ```python
+        await call_tool("manage_object_repo", {"operation": "list_objects"})
+        ```
         """
         try:
             if operation == "save":
@@ -861,7 +874,7 @@ def _register_repository_tools() -> None:
             logger.exception(f"Repository operation '{operation}' failed: {e}")
             return {"success": False, "message": f"Repository operation failed: {e!s}", "operation": operation}
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def manage_object_construction(
         ctx: Context,
         operation: str = "construct",
@@ -884,6 +897,14 @@ def _register_repository_tools() -> None:
         - modify: find stored script for object, sample modification, validate, execute
 
         Requires a client that supports MCP sampling (Claude Desktop, Antigravity, etc.)
+
+        ## Return Format
+        Standard dict with keys: success, message, object_name, scene_objects_created
+
+        ## Examples
+        ```python
+        await call_tool("manage_object_construction", {"operation": "construct", "description": "A red cube", "name": "MyCube"})
+        ```
         """
         try:
             if operation == "construct":
@@ -946,7 +967,7 @@ def _register_repository_tools() -> None:
             logger.exception(f"Construction operation '{operation}' failed: {e}")
             return {"success": False, "message": f"Construction operation failed: {e!s}", "operation": operation}
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def export_for_mcp_handoff(
         ctx: Context,
         asset_id: str,
@@ -961,6 +982,14 @@ def _register_repository_tools() -> None:
         Supported targets: vrchat (FBX), resonite (GLB).
         asset_id must exist in ~/.blender-mcp/repository/.
         Writes actual export files to a temp directory and returns their paths.
+
+        ## Return Format
+        Standard dict with keys: success, asset_id, target_mcp, primary_files, supporting_files
+
+        ## Examples
+        ```python
+        await call_tool("export_for_mcp_handoff", {"asset_id": "...", "target_mcp": "vrchat"})
+        ```
         """
         try:
             if target_mcp not in EXPORT_ENGINES:

@@ -62,11 +62,8 @@ export default function Settings() {
 
   useEffect(() => {
     loadConfig();
-  }, []);
-
-  useEffect(() => {
     fetchModels();
-  }, [llmConfig.provider]);
+  }, []);
 
   const loadConfig = async () => {
     try {
@@ -183,6 +180,8 @@ export default function Settings() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {" "}
+      data-testid="settings-page"
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-1 flex items-center gap-2">
@@ -217,7 +216,6 @@ export default function Settings() {
           </button>
         </div>
       </div>
-
       <div className="space-y-4">
         {/* LLM Provider Settings */}
         <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -229,7 +227,7 @@ export default function Settings() {
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-purple-400" />
               <h2 className="font-semibold">LLM Provider</h2>
-              <span className="text-xs text-muted-foreground ml-2">({llmConfig.provider})</span>
+              <span className="text-sm text-muted-foreground ml-2">({llmConfig.provider})</span>
             </div>
             {expandedSection === "llm" ? (
               <ChevronDown className="w-4 h-4" />
@@ -257,7 +255,7 @@ export default function Settings() {
                     />
                     <span className="font-medium">Ollama</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">Local models</p>
+                  <p className="text-sm text-muted-foreground">Local models</p>
                 </button>
 
                 <button
@@ -275,7 +273,7 @@ export default function Settings() {
                     />
                     <span className="font-medium">LM Studio</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">Local server</p>
+                  <p className="text-sm text-muted-foreground">Local server</p>
                 </button>
 
                 <button
@@ -293,7 +291,7 @@ export default function Settings() {
                     />
                     <span className="font-medium">Cloud (OpenAI)</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">API key required</p>
+                  <p className="text-sm text-muted-foreground">API key required</p>
                 </button>
               </div>
 
@@ -313,13 +311,16 @@ export default function Settings() {
                       onChange={(e) => updateLLMField("ollama_url", e.target.value)}
                       className="w-full bg-background border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Default: http://localhost:11434
                     </p>
                   </div>
 
                   <div className="mb-4">
-                    <label htmlFor="selected-model-select" className="text-sm font-semibold mb-1.5 block text-foreground">
+                    <label
+                      htmlFor="selected-model-select"
+                      className="text-sm font-semibold mb-1.5 block text-foreground"
+                    >
                       Active Model (Selected)
                     </label>
                     <select
@@ -353,7 +354,7 @@ export default function Settings() {
                         type="button"
                         onClick={fetchModels}
                         disabled={loadingModels}
-                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
                       >
                         <RefreshCw className={`w-3 h-3 ${loadingModels ? "animate-spin" : ""}`} />
                         Refresh
@@ -380,7 +381,7 @@ export default function Settings() {
                             <div>
                               <div className="font-medium text-sm">{model.name}</div>
                               {model.size && (
-                                <div className="text-xs text-muted-foreground">{model.size}</div>
+                                <div className="text-sm text-muted-foreground">{model.size}</div>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
@@ -393,7 +394,7 @@ export default function Settings() {
                                   e.stopPropagation();
                                   loadOllamaModel(model.id);
                                 }}
-                                className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                                className="text-sm px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                               >
                                 Load
                               </button>
@@ -422,13 +423,16 @@ export default function Settings() {
                       onChange={(e) => updateLLMField("lmstudio_url", e.target.value)}
                       className="w-full bg-background border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Default: http://localhost:1234
                     </p>
                   </div>
 
                   <div className="mb-4">
-                    <label htmlFor="selected-model-select-lm" className="text-sm font-semibold mb-1.5 block text-foreground">
+                    <label
+                      htmlFor="selected-model-select-lm"
+                      className="text-sm font-semibold mb-1.5 block text-foreground"
+                    >
                       Active Model (Selected)
                     </label>
                     <select
@@ -460,7 +464,7 @@ export default function Settings() {
                         type="button"
                         onClick={fetchModels}
                         disabled={loadingModels}
-                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
                       >
                         <RefreshCw className={`w-3 h-3 ${loadingModels ? "animate-spin" : ""}`} />
                         Refresh
@@ -499,7 +503,7 @@ export default function Settings() {
                       className="w-full bg-background border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                       placeholder="sk-..."
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Your API key is stored locally and never shared.
                     </p>
                   </div>
@@ -606,7 +610,7 @@ export default function Settings() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-medium text-sm">Auto Sync</div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Automatically sync changes to Blender
                 </p>
               </div>
@@ -628,7 +632,7 @@ export default function Settings() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-medium text-sm">Notifications</div>
-                <p className="text-xs text-muted-foreground">Show toast notifications</p>
+                <p className="text-sm text-muted-foreground">Show toast notifications</p>
               </div>
               <button
                 type="button"

@@ -50,10 +50,13 @@
   }
 }
 
-select, input, textarea {
+select,
+input,
+textarea {
   color-scheme: dark;
 }
 
-code, pre {
-    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+code,
+pre {
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
 }

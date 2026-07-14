@@ -7,12 +7,16 @@ Provides tools for importing various file formats into Blender.
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_import_tools():
     """Register all import-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_import(
         operation: str = "import_fbx",
         filepath: str = "",
@@ -53,6 +57,14 @@ def _register_import_tools():
 
         Returns:
             Success message with import details
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_import", {"operation": "import_fbx", "filepath": "C:/model.fbx"})
+        ```
         """
         from blender_mcp.handlers.import_handler import import_file, link_asset
 
@@ -91,7 +103,7 @@ def _register_import_tools():
         except Exception as e:
             return f"Error in import operation '{operation}': {e!s}"
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def import_cad_file(
         filepath: str,
         cad_format: str = "STEP",
@@ -122,6 +134,14 @@ def _register_import_tools():
 
         Returns:
             Success message with import details
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("import_cad_file", {"filepath": "C:/model.step"})
+        ```
         """
         import os
         import tempfile

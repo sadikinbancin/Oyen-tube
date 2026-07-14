@@ -9,12 +9,16 @@ import json
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_render_tools():
     """Register all render-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_render(
         operation: str = "render_preview",
         output_path: str = "",
@@ -54,6 +58,14 @@ def _register_render_tools():
         - **set_engine**: Configure Cycles/EEVEE engine, samples, device
         - **configure_layers**: Enable render passes on a view layer
         - **setup_post_processing**: EEVEE bloom, SSAO, motion blur, DOF
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_render", {"operation": "render_preview", "output_path": "C:/render/output.png"})
+        ```
         """
         from blender_mcp.handlers.render_handler import (
             render_multi_angle,

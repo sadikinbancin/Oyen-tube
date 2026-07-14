@@ -13,11 +13,15 @@ from blender_mcp.exceptions import BlenderNotFoundError, BlenderScriptError
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_scripting_tools():
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def script_execute(code: str) -> str:
         """
         Execute Python script in Blender (headless).
@@ -27,6 +31,14 @@ def _register_scripting_tools():
 
         Returns:
             JSON string with keys: output (str), success (bool).
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("script_execute", {"code": "import bpy; ..."})
+        ```
         """
         if not code or not code.strip():
             return json.dumps({"output": "Empty script.", "success": False})

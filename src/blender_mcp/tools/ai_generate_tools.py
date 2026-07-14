@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_ai_generate_tools() -> None:
     from blender_mcp.app import get_app
@@ -14,7 +18,7 @@ def _register_ai_generate_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_ai_generate(
         operation: str = "generate",
         prompt: str = "",
@@ -35,6 +39,14 @@ def _register_ai_generate_tools() -> None:
         Operations:
         - generate: text/image-to-3D, poll, download, import
         - list_backends: show configured backends and env var names
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_ai_generate", {"operation": "generate", "prompt": "a red chair"})
+        ```
         """
         try:
             if operation == "list_backends":

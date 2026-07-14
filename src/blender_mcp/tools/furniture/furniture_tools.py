@@ -7,12 +7,16 @@ Provides tools for creating complex objects like furniture, buildings, and struc
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_furniture_tools():
     """Register all furniture and complex object tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_furniture(
         operation: str = "create_chair",
         name: str = "Furniture",
@@ -64,6 +68,14 @@ def _register_furniture_tools():
 
         Returns:
             Success message with creation details
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_furniture", {"operation": "create_chair", "name": "DiningChair"})
+        ```
         """
         from loguru import logger
 

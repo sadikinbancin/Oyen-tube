@@ -10,10 +10,10 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12"
 authors = [
-    {name = "FlowEngineer sandraschi", email = "sandraschi@example.com"}
+    {name = "Blender MCP Contributors"}
 ]
 maintainers = [
-    {name = "FlowEngineer sandraschi", email = "sandraschi@example.com"}
+    {name = "sandraschi", email = "sandraschi@users.noreply.github.com"}
 ]
 keywords = [
     "mcp", "mcp-server", "fastmcp", "ai", "automation",
@@ -34,6 +34,8 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
     "Framework :: AsyncIO",
 ]
+urls = {Homepage = "https://github.com/sandraschi/blender-mcp", Repository = "https://github.com/sandraschi/blender-mcp", "Bug Tracker" = "https://github.com/sandraschi/blender-mcp/issues", Documentation = "https://github.com/sandraschi/blender-mcp#readme"}
+
 dependencies = [
     "fastmcp>=3.4.2,<4",
     "httpx>=0.25.0",

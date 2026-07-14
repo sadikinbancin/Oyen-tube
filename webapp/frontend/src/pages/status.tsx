@@ -37,7 +37,7 @@ export default function Status() {
   }, [loadStatus]);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto" data-testid="status-page">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-1">System Status</h1>
@@ -57,13 +57,17 @@ export default function Status() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-3 mb-2">
-            <div className={`p-2 rounded-md ${status.operational ? "bg-green-500/10" : "bg-red-500/10"}`}>
-              <Activity className={`w-5 h-5 ${status.operational ? "text-green-500" : "text-red-500"}`} />
+            <div
+              className={`p-2 rounded-md ${status.operational ? "bg-green-500/10" : "bg-red-500/10"}`}
+            >
+              <Activity
+                className={`w-5 h-5 ${status.operational ? "text-green-500" : "text-red-500"}`}
+              />
             </div>
             <span className="font-medium text-muted-foreground">Status</span>
           </div>
           <div className="text-2xl font-bold">{status.operational ? "Operational" : "Offline"}</div>
-          <div className={`text-xs mt-1 ${status.operational ? "text-green-500" : "text-red-500"}`}>
+          <div className={`text-sm mt-1 ${status.operational ? "text-green-500" : "text-red-500"}`}>
             {status.operational ? "Connected" : "Not Connected"}
           </div>
         </div>
@@ -76,7 +80,7 @@ export default function Status() {
             <span className="font-medium text-muted-foreground">Server</span>
           </div>
           <div className="text-2xl font-bold">blender-mcp</div>
-          <div className="text-xs text-muted-foreground mt-1">v{status.version}</div>
+          <div className="text-sm text-muted-foreground mt-1">v{status.version}</div>
         </div>
 
         <div className="p-4 bg-card border border-border rounded-lg">
@@ -87,7 +91,7 @@ export default function Status() {
             <span className="font-medium text-muted-foreground">Latency</span>
           </div>
           <div className="text-2xl font-bold">{pingMs !== null ? `${pingMs} ms` : "---"}</div>
-          <div className="text-xs text-muted-foreground mt-1">API round-trip</div>
+          <div className="text-sm text-muted-foreground mt-1">API round-trip</div>
         </div>
 
         <div className="p-4 bg-card border border-border rounded-lg">
@@ -97,10 +101,12 @@ export default function Status() {
             </div>
             <span className="font-medium text-muted-foreground">Blender</span>
           </div>
-          <div className={`text-2xl font-bold ${status.operational ? "text-green-500" : "text-yellow-500"}`}>
+          <div
+            className={`text-2xl font-bold ${status.operational ? "text-green-500" : "text-yellow-500"}`}
+          >
             {status.operational ? "Connected" : "Disconnected"}
           </div>
-          <div className="text-xs text-muted-foreground mt-1">Blender 4.2+</div>
+          <div className="text-sm text-muted-foreground mt-1">Blender 4.2+</div>
         </div>
       </div>
 
@@ -111,7 +117,10 @@ export default function Status() {
         </div>
         <p className="text-sm text-muted-foreground mt-2">
           For detailed server logs with filtering, search, and export, visit the{" "}
-          <a href="/logs" className="text-primary hover:underline">Logs page</a>.
+          <a href="/logs" className="text-primary hover:underline">
+            Logs page
+          </a>
+          .
         </p>
       </div>
     </div>

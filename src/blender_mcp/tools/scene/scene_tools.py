@@ -9,6 +9,10 @@ from typing import Literal
 
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def get_app():
     from blender_mcp.app import app
@@ -20,7 +24,7 @@ def _register_scene_tools():
     """Register the blender_scene portmanteau tool."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_scene(
         operation: Literal[
             "create_scene",
@@ -77,6 +81,14 @@ def _register_scene_tools():
 
         Returns:
             Operation result message
+
+        ## Return Format
+        Formatted string with operation result
+
+        ## Examples
+        ```python
+        await call_tool("blender_scene", {"operation": "list_scenes"})
+        ```
         """
         from blender_mcp.handlers.scene_handler import (
             add_to_collection as _add_to_collection,

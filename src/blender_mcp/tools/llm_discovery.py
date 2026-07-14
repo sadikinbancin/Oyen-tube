@@ -10,6 +10,10 @@ from blender_mcp.app import get_app
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 OLLAMA_DEFAULT = "http://localhost:11434"
 
 BLENDER_SCRIPT_SYSTEM = """You are a Blender Python (bpy) expert. Output only a single, valid Python script. No markdown, no code fences, no explanation. Use only 'import bpy' and standard library. Script must create or modify the scene as requested. Start with import bpy."""
@@ -39,9 +43,18 @@ def _extract_code(text: str) -> str:
 def _register_llm_tools():
     app = get_app()
 
-    @app.tool()
+    @app.tool(annotations=_READ_ONLY)
     async def list_local_models() -> dict[str, Any]:
-        """Discover local LLM models from Ollama and LM Studio."""
+        """Discover local LLM models from Ollama and LM Studio.
+
+        ## Return Format
+        Standard dict with keys: success, summary, result
+
+        ## Examples
+        ```python
+        await call_tool("list_local_models")
+        ```
+        """
         models = {"ollama": [], "lm_studio": [], "errors": []}
         try:
             async with httpx.AsyncClient() as client:
@@ -70,13 +83,22 @@ def _register_llm_tools():
             "result": models,
         }
 
-    @app.tool()
+    @app.tool(annotations=_MUTATING)
     async def generate_blender_script(
         prompt: str,
         model: str = "llama3.2",
         ollama_url: str = "http://localhost:11434",
     ) -> dict:
-        """Generate a Blender Python script from a natural language prompt using a local LLM (Ollama)."""
+        """Generate a Blender Python script from a natural language prompt using a local LLM (Ollama).
+
+        ## Return Format
+        Standard dict with keys: success, script, error
+
+        ## Examples
+        ```python
+        await call_tool("generate_blender_script", {"prompt": "create a cube at origin", "model": "llama3.2"})
+        ```
+        """
         if not prompt or not prompt.strip():
             return {"success": False, "script": "", "error": "Empty prompt"}
         full_prompt = f"{BLENDER_SCRIPT_SYSTEM}\n\nUser request: {prompt.strip()}"
@@ -91,7 +113,7 @@ def _register_llm_tools():
             err_msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
             return {"success": False, "script": "", "error": err_msg}
 
-    @app.tool()
+    @app.tool(annotations=_MUTATING)
     async def llm_models(
         operation: Literal["list", "pull", "remove"] = "list",
         model_name: str | None = None,
@@ -112,6 +134,14 @@ def _register_llm_tools():
 
         Returns:
             Dict with success, summary, result (list of names) or error.
+
+        ## Return Format
+        Standard dict with keys: success, summary, result
+
+        ## Examples
+        ```python
+        await call_tool("llm_models", {"operation": "list"})
+        ```
         """
         base = ollama_url.rstrip("/")
         if operation in ("pull", "remove") and not (model_name and model_name.strip()):

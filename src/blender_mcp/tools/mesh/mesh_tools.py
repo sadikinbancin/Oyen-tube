@@ -11,6 +11,10 @@ from pydantic import BaseModel, Field
 from blender_mcp.app import get_app
 from blender_mcp.compat import *
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +33,7 @@ def _register_mesh_tools():
     """Register all mesh-related tools."""
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_mesh(
         operation: str = "create_cube",
         name: str = "Object",
@@ -118,6 +122,14 @@ def _register_mesh_tools():
         Note:
             All objects are created with default materials. Use blender_materials tools for texturing.
             Transform operations can be applied immediately after creation using blender_transform.
+
+        ## Return Format
+        Standard string with operation result details
+
+        ## Examples
+        ```python
+        await call_tool("blender_mesh", {"operation": "create_cube", "name": "MyCube", "location": [0, 0, 0]})
+        ```
         """
         import json
 

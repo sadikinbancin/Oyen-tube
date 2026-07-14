@@ -8,6 +8,24 @@ New-Item -ItemType Directory -Force -Path $ResourceDir, $DevDir | Out-Null
 
 Write-Host "=== ${RepoName} Tauri Release Build ===" -ForegroundColor Cyan
 
+# Step 0: Verify API_BASE matches backend port (catches "Failed to fetch" before Tauri build)
+$BACKEND_PORT = 10849
+$apiFiles = @("web_sota\src\lib\api.ts", "webapp\frontend\src\api\mcp.ts", "webapp\src\lib\api.ts")
+foreach ($af in $apiFiles) {
+    $fullPath = Join-Path $Root $af
+    if (Test-Path $fullPath) {
+        $apiContent = Get-Content $fullPath -Raw
+        if ($apiContent -match "127.0.0.1:(\d+)") {
+            $apiPort = [int]$Matches[1]
+            if ($apiPort -ne $BACKEND_PORT) {
+                throw "API_BASE in $af points to port $apiPort but backend serves on $BACKEND_PORT. In dev Vite proxies work, in prod/NSIS this gives 'Failed to fetch'."
+            }
+            Write-Host "  API_BASE port: $apiPort (matches backend) *" -ForegroundColor Green
+        }
+        break
+    }
+}
+
 # Step 1: TypeScript lint gate + frontend build
 $frontendDirs = @("web_sota", "webapp/frontend", "webapp")
 foreach ($dir in $frontendDirs) {
@@ -52,8 +70,27 @@ if (Test-Path $specFile) {
             Write-Host "  Patched fastmcp metadata fallback" -ForegroundColor Yellow
         }
     }
+    # Pre-clean stale exe to avoid PermissionError on rebuild
+    Remove-Item "$Root\dist\${RepoName}-backend.exe" -Force -ErrorAction SilentlyContinue
     uv run python -m PyInstaller "$specFile" --clean --noconfirm
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
+
+    # Gate: smoke-test the frozen binary
+    $frozenExe = "$Root\dist\${RepoName}-backend.exe"
+    Write-Host "  Smoke-testing frozen binary..." -ForegroundColor Yellow
+    $testPort = 11999
+    $oldPort = $env:MCP_PORT; $oldHost = $env:MCP_HOST
+    $env:MCP_PORT = "$testPort"; $env:MCP_HOST = "127.0.0.1"
+    $testProc = Start-Process -FilePath $frozenExe -NoNewWindow -PassThru -RedirectStandardError "$Root\dist\pyi-crash.log"
+    Start-Sleep -Seconds 5
+    $env:MCP_PORT = $oldPort; $env:MCP_HOST = $oldHost
+    if ($testProc.HasExited) {
+        $crash = Get-Content "$Root\dist\pyi-crash.log" -Raw
+        throw "Frozen binary crashed on launch (exit $($testProc.ExitCode)):`n$crash"
+    }
+    $testProc.Kill(); $testProc.Dispose()
+    Remove-Item "$Root\dist\pyi-crash.log" -Force -ErrorAction SilentlyContinue
+    Write-Host "  Frozen binary smoke test PASSED" -ForegroundColor Green
     Pop-Location
 } else {
     Write-Host "  WARNING: spec file not found at $specFile - using existing backend exe if present" -ForegroundColor DarkYellow
@@ -67,9 +104,14 @@ $dest_resource = Join-Path $ResourceDir "${RepoName}-backend.exe"
 $dest_dev = Join-Path $DevDir "${RepoName}-backend-${Triple}.exe"
 Copy-Item -Path $backend_src -Destination $dest_resource -Force
 Copy-Item -Path $backend_src -Destination $dest_dev -Force
-Write-Host "  Backend exe: $((Get-Item $backend_src).Length / 1MB) MB"
+$sizeMB = (Get-Item $backend_src).Length / 1MB
+Write-Host "  Backend exe: $([math]::Round($sizeMB, 1)) MB"
+if ($sizeMB -lt 5) {
+    throw "Backend exe is only $([math]::Round($sizeMB, 1)) MB at $backend_src -- PyInstaller produced an empty/broken binary"
+}
+Write-Host "  Size gate PASSED (>= 5 MB)" -ForegroundColor Green
 
-# Bundle .env.example (NOT .env — dev .env has personal API keys)
+# Bundle .env.example (NOT .env -- dev .env has personal API keys)
 $envExample = "$Root\.env.example"
 if (Test-Path $envExample) {
     Copy-Item $envExample "$ResourceDir\.env.example" -Force

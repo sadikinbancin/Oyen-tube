@@ -7,6 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+_DESTRUCTIVE = {}
+
 
 def _register_geonodes_tools() -> None:
     from blender_mcp.app import get_app
@@ -21,7 +25,7 @@ def _register_geonodes_tools() -> None:
 
     app = get_app()
 
-    @app.tool
+    @app.tool(annotations=_MUTATING)
     async def blender_geonodes(
         operation: str = "create_group",
         group_name: str = "GeoNodes",
@@ -49,6 +53,14 @@ def _register_geonodes_tools() -> None:
         - assign_modifier: attach node group to an object as Geometry Nodes modifier
         - add_input: expose a group input socket
         - list_node_types: common GeometryNode types for agents
+
+        ## Return Format
+        Standard dict with keys: success, message, data
+
+        ## Examples
+        ```python
+        await call_tool("blender_geonodes", {"operation": "create_group", "group_name": "MyNodes"})
+        ```
         """
         try:
             if operation == "create_group":

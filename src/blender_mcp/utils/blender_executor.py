@@ -241,43 +241,17 @@ except Exception as e:
             with open(test_script_path, "w", encoding="utf-8") as f:
                 f.write(test_script)
 
-            # Ensure the Blender executable path is properly quoted for Windows
             blender_cmd = [
-                f'"{self.blender_path}"',  # Quote the path to handle spaces
+                str(self.blender_path),
             ]
-
-            # Add headless flag only if running in headless mode
             if self.headless:
-                blender_cmd.extend(
-                    [
-                        "--background",
-                        "--factory-startup",
-                    ]
-                )
+                blender_cmd.extend(["--background", "--factory-startup"])
             else:
-                blender_cmd.extend(
-                    [
-                        "--factory-startup",
-                    ]
-                )
+                blender_cmd.extend(["--factory-startup"])
+            blender_cmd.extend(["--python", test_script_path, "--"])
 
-            blender_cmd.extend(
-                [
-                    "--python",
-                    f'"{test_script_path}"',
-                    "--",  # End of Blender arguments
-                ]
-            )
-
-            # On Windows, we need to use shell=True and join the command parts
-            if os.name == "nt":
-                command = " ".join(blender_cmd)
-                logger.debug(f"Running command: {command}")
-                result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False, shell=True, stdin=subprocess.DEVNULL)
-            else:
-                # On Unix-like systems, we can pass the command as a list
-                logger.debug(f"Running command: {' '.join(blender_cmd)}")
-                result = subprocess.run(blender_cmd, capture_output=True, text=True, timeout=30, check=False, stdin=subprocess.DEVNULL)
+            logger.debug(f"Running command: {' '.join(blender_cmd)}")
+            result = subprocess.run(blender_cmd, capture_output=True, text=True, timeout=60, check=False, stdin=subprocess.DEVNULL)
 
             if result.returncode != 0:
                 logger.error(f"Blender functionality test failed: {result.stderr}")

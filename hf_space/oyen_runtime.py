@@ -17,12 +17,17 @@ class BlenderRuntimeError(RuntimeError):
 def find_blender() -> str:
     """Locate Blender installed by packages.txt or an explicit environment variable."""
     configured = os.getenv("BLENDER_EXECUTABLE", "").strip()
-    candidates = [configured, shutil.which("blender") or "", "/usr/bin/blender", "/usr/local/bin/blender"]
+    candidates = [
+        configured,
+        shutil.which("blender") or "",
+        "/usr/bin/blender",
+        "/usr/local/bin/blender",
+    ]
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return str(Path(candidate).resolve())
     raise BlenderRuntimeError(
-        "Blender tidak ditemukan di Space. Pastikan hf_space/packages.txt berisi paket 'blender'."
+        "Blender tidak ditemukan di Space. Pastikan packages.txt berisi paket 'blender'."
     )
 
 
@@ -31,7 +36,37 @@ def _tail(text: str, limit: int = 6000) -> str:
     return clean[-limit:] if len(clean) > limit else clean
 
 
-def render_job(job: dict[str, Any], output_root: str | Path, timeout: int = 180) -> dict[str, str | float]:
+def _prepare_script(job: dict[str, Any]) -> str:
+    """Adapt the portable worker script for the Hugging Face runtime."""
+    script = build_blender_script(job)
+    script = script.replace(
+        'OUTPUT_ROOT = os.path.abspath("//oyen_output")',
+        'OUTPUT_ROOT = os.path.abspath(os.environ.get("OYEN_OUTPUT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "oyen_output")))',
+    )
+    script = script.replace(
+        "scene.render.resolution_percentage = 50",
+        'scene.render.resolution_percentage = int(render.get("preview_resolution_percentage", 50))',
+    )
+    old_engine_block = '''    preferred_engine = str(render.get("engine", "BLENDER_EEVEE_NEXT"))
+    available_engines = {"BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH", "CYCLES"}
+    scene.render.engine = preferred_engine if preferred_engine in available_engines else "BLENDER_EEVEE_NEXT"'''
+    new_engine_block = '''    preferred_engine = str(render.get("engine", "BLENDER_EEVEE_NEXT"))
+    engine_candidates = [preferred_engine, "BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "BLENDER_WORKBENCH"]
+    for engine_name in engine_candidates:
+        try:
+            scene.render.engine = engine_name
+            break
+        except Exception:
+            continue'''
+    script = script.replace(old_engine_block, new_engine_block)
+    return script
+
+
+def render_job(
+    job: dict[str, Any],
+    output_root: str | Path,
+    timeout: int = 180,
+) -> dict[str, str | float]:
     """Generate a Blender script, run Blender headlessly, and return a validated MP4 path."""
     blender = find_blender()
     root = Path(output_root)
@@ -45,7 +80,7 @@ def render_job(job: dict[str, Any], output_root: str | Path, timeout: int = 180)
 
     script_path = work_dir / "oyen_blender_scene.py"
     log_path = work_dir / "blender.log"
-    script_path.write_text(build_blender_script(job), encoding="utf-8")
+    script_path.write_text(_prepare_script(job), encoding="utf-8")
 
     env = os.environ.copy()
     env["OYEN_OUTPUT_DIR"] = str(output_dir.resolve())
@@ -74,8 +109,16 @@ def render_job(job: dict[str, Any], output_root: str | Path, timeout: int = 180)
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        partial_stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-        partial_stderr = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        partial_stdout = (
+            exc.stdout.decode("utf-8", errors="replace")
+            if isinstance(exc.stdout, bytes)
+            else (exc.stdout or "")
+        )
+        partial_stderr = (
+            exc.stderr.decode("utf-8", errors="replace")
+            if isinstance(exc.stderr, bytes)
+            else (exc.stderr or "")
+        )
         log_path.write_text(
             f"COMMAND: {' '.join(command)}\n\nSTDOUT:\n{partial_stdout}\n\nSTDERR:\n{partial_stderr}",
             encoding="utf-8",

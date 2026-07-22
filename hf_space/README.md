@@ -1,27 +1,28 @@
 ---
-title: Oyen AI Animation Studio
+title: Oyen Purba 3D Rig Studio
 emoji: 🐈
 colorFrom: yellow
 colorTo: red
 sdk: gradio
 sdk_version: 5.49.1
-app_file: app.py
+app_file: app_v04.py
 pinned: false
 license: mit
-short_description: Prompt to Blender MP4 preview rendered directly in the Space
+short_description: Oyen Purba with a verified Blender armature, MP4 and editable blend file
 ---
 
-# Oyen AI Animation Studio
+# Oyen Purba 3D Rig Studio
 
-Gradio interface that turns an animation prompt into a Blender-rendered MP4 preview.
+This Space renders **Oyen Purba**, the permanent main character, with a real Blender armature.
 
-## V0.3
+## V0.4 — Rig V1
 
-- Create an `animation_job.json` from a story prompt.
-- Generate a procedural Oyen placeholder, lighting, animation, and camera movement.
-- Run Blender headlessly inside the Hugging Face Space.
-- Show the completed MP4 in the browser and provide a direct MP4 download.
-- Provide optional `.blend`, JSON, and Blender log files for debugging.
-- Follow the headless Blender execution pattern used by the main `blender-mcp` codebase.
+- Official orange-tabby Oyen Purba design, fang necklace and prehistoric loincloth.
+- A 34-bone armature with body, head, jaw, ears, arms, legs and five tail bones.
+- IK hand and foot controls with elbow and knee pole targets.
+- Animated gait, body bounce, head acting, jaw, ear twitch, tail follow-through and hand wave.
+- Direct MP4 preview in the browser.
+- Downloadable `.blend` containing the editable rig.
+- Runtime validation rejects the result unless the armature, `.blend` and MP4 all exist.
 
-The free preview is intentionally limited to 3–8 seconds, 12–15 FPS, and a maximum of 480p. The final rigged Oyen character and full prompt-aware scene construction will be connected in later versions.
+Rig V1 uses segmented bone parenting for reliable procedural rendering. Rig V2 will focus on a unified retopologized mesh, deformation weight painting, IK/FK controls and facial shape keys.

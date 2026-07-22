@@ -1,0 +1,142 @@
+        for index in range(1, 6):
+            tail_phase = phase - index * 0.42
+            keyframe_pose_bone(
+                pose[f"tail.{index:02d}"],
+                frame,
+                rotation=(
+                    math.radians(2.0) * math.sin(tail_phase * 0.8),
+                    math.radians(7.0) * math.sin(tail_phase * 0.7),
+                    math.radians(13.0) * math.sin(tail_phase),
+                ),
+            )
+
+    middle = max(2, total // 2)
+    wave_frames = [middle - max(2, fps // 3), middle, middle + max(2, fps // 3)]
+    for index, frame in enumerate(wave_frames):
+        if 1 <= frame <= total:
+            keyframe_pose_bone(pose["upper_arm.R"], frame, rotation=(math.radians(-45), math.radians(-15), math.radians(50)))
+            keyframe_pose_bone(pose["forearm.R"], frame, rotation=(math.radians(-75), 0.0, math.radians((-18, 18, -18)[index])))
+            keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(-2), 0.0, math.radians(-10)))
+
+    set_interpolation(armature)
+    scene.frame_set(1)
+
+
+def add_environment():
+    floor_material = make_material("Studio Floor", (0.16, 0.19, 0.24, 1.0), 0.82)
+    backdrop_material = make_material("Studio Backdrop", (0.72, 0.63, 0.48, 1.0), 0.9)
+    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, -0.03))
+    floor = bpy.context.active_object
+    floor.name = "Oyen_Studio_Floor"
+    floor.data.materials.append(floor_material)
+
+    bpy.ops.mesh.primitive_plane_add(size=24, location=(0, 3.2, 4.0), rotation=(math.radians(90), 0, 0))
+    backdrop = bpy.context.active_object
+    backdrop.name = "Oyen_Studio_Backdrop"
+    backdrop.data.materials.append(backdrop_material)
+
+    bpy.ops.object.light_add(type="AREA", location=(-3.5, -4.5, 6.2))
+    key = bpy.context.active_object
+    key.data.energy = 1050
+    key.data.size = 5.0
+    key.rotation_euler = (math.radians(25), 0, math.radians(-30))
+
+    bpy.ops.object.light_add(type="AREA", location=(4.0, -1.5, 4.0))
+    fill = bpy.context.active_object
+    fill.data.energy = 650
+    fill.data.size = 4.0
+    fill.rotation_euler = (math.radians(60), 0, math.radians(120))
+
+    bpy.ops.object.light_add(type="AREA", location=(0.0, 3.0, 5.5))
+    rim = bpy.context.active_object
+    rim.data.energy = 800
+    rim.data.size = 3.0
+    rim.rotation_euler = (math.radians(-30), 0, math.radians(180))
+
+
+def point_camera(camera, target):
+    direction = Vector(target) - camera.location
+    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+
+def create_camera():
+    aspect = str(JOB["render"].get("aspect_ratio", "9:16"))
+    if aspect == "9:16":
+        location = (4.8, -8.6, 3.2)
+        lens = 58
+    elif aspect == "1:1":
+        location = (4.6, -8.0, 3.1)
+        lens = 54
+    else:
+        location = (5.7, -9.0, 3.1)
+        lens = 52
+    bpy.ops.object.camera_add(location=location)
+    camera = bpy.context.active_object
+    camera.name = "Oyen_Camera"
+    camera.data.lens = lens
+    bpy.context.scene.camera = camera
+    point_camera(camera, (0.0, 0.0, 1.25))
+
+    total = max(2, int(JOB["timeline"]["total_frames"]))
+    camera.keyframe_insert(data_path="location", frame=1)
+    camera.keyframe_insert(data_path="rotation_euler", frame=1)
+    camera.data.keyframe_insert(data_path="lens", frame=1)
+    camera.location.x += 0.45
+    camera.location.y += 0.2
+    point_camera(camera, (0.45, 0.0, 1.35))
+    camera.keyframe_insert(data_path="location", frame=total)
+    camera.keyframe_insert(data_path="rotation_euler", frame=total)
+    camera.data.keyframe_insert(data_path="lens", frame=total)
+    return camera
+
+
+def configure_scene():
+    scene = bpy.context.scene
+    timeline = JOB["timeline"]
+    render = JOB["render"]
+    scene.frame_start = 1
+    scene.frame_end = max(2, int(timeline["total_frames"]))
+    scene.render.fps = int(timeline["fps"])
+    scene.render.resolution_x = int(render["width"])
+    scene.render.resolution_y = int(render["height"])
+    scene.render.resolution_percentage = int(render.get("preview_resolution_percentage", 100))
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.light = "STUDIO"
+    scene.display.shading.show_shadows = True
+    scene.display.shading.show_cavity = True
+    scene.display.shading.cavity_type = "WORLD"
+    scene.display.shading.color_type = "MATERIAL"
+    scene.render.image_settings.file_format = "FFMPEG"
+    scene.render.ffmpeg.format = "MPEG4"
+    scene.render.ffmpeg.codec = "H264"
+    scene.render.ffmpeg.constant_rate_factor = "MEDIUM"
+    scene.render.filepath = VIDEO_PATH
+    scene.world.color = (0.035, 0.045, 0.065)
+
+
+def main():
+    os.makedirs(OUTPUT_ROOT, exist_ok=True)
+    log(f"Starting {JOB.get('job_id', 'unknown')}")
+    clear_scene()
+    configure_scene()
+    add_environment()
+    armature = create_armature()
+    create_character(armature)
+    animate_rig(armature)
+    create_camera()
+    bpy.context.scene.frame_set(1)
+    bpy.ops.wm.save_as_mainfile(filepath=BLEND_PATH)
+    log(f"Rigged blend saved: {BLEND_PATH}")
+    bpy.ops.render.render(animation=True)
+    log(f"Video rendered: {VIDEO_PATH}")
+    print("OYEN_RIG_V1_SUCCESS")
+    print("OYEN_WORKER_SUCCESS")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"OYEN_RIG_V1_ERROR: {exc}")
+        print(traceback.format_exc())
+        raise

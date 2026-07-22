@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: oyen-huggingface-deploy
@@ -23,26 +24,36 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Mark deployment pending
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying Oyen to Hugging Face"}'
+
       - name: Checkout GitHub repository
         uses: actions/checkout@v4
 
-      - name: Validate deployment files and secret
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
-          test -f hf_space/app.py || { echo "hf_space/app.py is missing"; exit 1; }
-          test -f hf_space/README.md || { echo "hf_space/README.md is missing"; exit 1; }
-          test -f hf_space/requirements.txt || { echo "hf_space/requirements.txt is missing"; exit 1; }
-
       - name: Deploy Gradio Space
+        id: deploy
+        continue-on-error: true
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: lako123
           HF_SPACE: lako123/Belajarh-ani
         run: |
           set -euo pipefail
+
+          test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
+          test -f hf_space/app.py || { echo "hf_space/app.py is missing"; exit 1; }
+          test -f hf_space/README.md || { echo "hf_space/README.md is missing"; exit 1; }
+          test -f hf_space/requirements.txt || { echo "hf_space/requirements.txt is missing"; exit 1; }
 
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -64,9 +75,43 @@ jobs:
           git commit -m "Deploy Oyen from GitHub ${GITHUB_SHA::7}"
           git push origin HEAD:main
 
+      - name: Publish deployment status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DEPLOY_OUTCOME" = "success" ]; then
+            STATE="success"
+            DESCRIPTION="Oyen deployed to Hugging Face"
+          else
+            STATE="failure"
+            DESCRIPTION="Oyen deploy to Hugging Face failed"
+          fi
+
+          PAYLOAD=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$STATE" "$DESCRIPTION")
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data "$PAYLOAD"
+
       - name: Deployment summary
+        if: always()
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
         run: |
           echo "### Oyen Hugging Face deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Outcome: \`${DEPLOY_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source: \`hf_space/\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Target: \`lako123/Belajarh-ani\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Space: https://huggingface.co/spaces/lako123/Belajarh-ani" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail workflow when deployment failed
+        if: steps.deploy.outcome != 'success'
+        run: exit 1

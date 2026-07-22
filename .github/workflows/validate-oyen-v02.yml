@@ -1,4 +1,4 @@
-name: Validate Oyen V0.3
+name: Validate Oyen Purba V0.4
 
 on:
   push:
@@ -16,7 +16,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: oyen-v03-validation
+  group: oyen-v04-validation
   cancel-in-progress: true
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"oyen-v03/validate","description":"Validating direct MP4 runtime"}'
+            --data '{"state":"pending","context":"oyen-v04/validate","description":"Validating Oyen Purba app and armature runtime"}'
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,19 +46,57 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate Python and render adapter
+      - name: Validate app, rig generator and runtime
         id: validation
         continue-on-error: true
         run: |
           set -euo pipefail
           python -m py_compile \
             hf_space/app.py \
+            hf_space/app_v04.py \
             hf_space/oyen_bridge.py \
+            hf_space/oyen_rig_v1.py \
             hf_space/oyen_runtime.py \
             tests/test_oyen_bridge.py \
             tests/test_oyen_runtime.py
           python -m unittest discover -s tests -p 'test_oyen_*.py' -v
           grep -qx 'blender' hf_space/packages.txt
+          grep -qx 'libegl1' hf_space/packages.txt
+          grep -q 'app_file: app_v04.py' hf_space/README.md
+          grep -q 'OYEN_RIG_BONES count=' hf_space/rig_parts/oyen_rig_v1_05.txt
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "hf_space")
+          from oyen_bridge import build_blender_script
+
+          job = {
+              "job_id": "v04-ci",
+              "project": {"prompt": "Oyen walks and waves"},
+              "timeline": {"fps": 12, "total_frames": 36, "duration_seconds": 3, "scenes": []},
+              "render": {
+                  "width": 360,
+                  "height": 640,
+                  "aspect_ratio": "9:16",
+                  "preview_resolution_percentage": 100,
+              },
+          }
+          script = build_blender_script(job)
+          compile(script, "oyen_blender_scene.py", "exec")
+          required = [
+              "Oyen_Purba_Rig",
+              "upper_arm.L",
+              "foot_ik.R",
+              "tail.05",
+              "Oyen_Arm_IK",
+              "Oyen_Leg_IK",
+              "OYEN_RIG_V1_SUCCESS",
+              "OYEN_RIG_BONES count=",
+          ]
+          missing = [item for item in required if item not in script]
+          if missing:
+              raise SystemExit(f"Missing Oyen Rig V0.4 elements: {missing}")
+          print(f"OYEN_V04_SCRIPT_OK bytes={len(script)}")
+          PY
 
       - name: Publish validation status
         if: always()
@@ -67,17 +105,14 @@ jobs:
           VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
         run: |
           set -euo pipefail
-
           if [ "$VALIDATION_OUTCOME" = "success" ]; then
             STATE="success"
-            DESCRIPTION="Oyen V0.3 direct MP4 runtime is valid"
+            DESCRIPTION="Oyen Purba V0.4 app and armature runtime are valid"
           else
             STATE="failure"
-            DESCRIPTION="Oyen V0.3 validation failed"
+            DESCRIPTION="Oyen Purba V0.4 validation failed"
           fi
-
-          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v03/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
-
+          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v04/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
           curl --fail-with-body \
             --request POST \
             --header "Accept: application/vnd.github+json" \

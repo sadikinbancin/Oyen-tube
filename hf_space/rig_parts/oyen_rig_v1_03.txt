@@ -1,0 +1,143 @@
+            parent=armature,
+            bone=f"ear.{side}",
+        )
+        add_uv_sphere(f"Oyen_EyeWhite.{side}", (0.18 * sign, -0.46, 2.04), (0.135, 0.055, 0.18), white, armature, "head")
+        add_uv_sphere(f"Oyen_Iris.{side}", (0.18 * sign, -0.516, 2.04), (0.075, 0.028, 0.11), amber, armature, "head")
+        add_uv_sphere(f"Oyen_Pupil.{side}", (0.18 * sign, -0.543, 2.04), (0.035, 0.012, 0.07), cocoa, armature, "head")
+        add_uv_sphere(f"Oyen_EyeHighlight.{side}", (0.155 * sign, -0.559, 2.095), (0.018, 0.008, 0.025), white, armature, "head")
+
+        upper_start = (0.28 * sign, 0, 1.48)
+        upper_end = (0.58 * sign, 0, 1.25)
+        lower_end = (0.69 * sign, -0.02, 0.97)
+        add_capsule(f"Oyen_UpperArm.{side}", upper_start, upper_end, 0.16, orange, armature, f"upper_arm.{side}", squash=(1.0, 0.9))
+        add_capsule(f"Oyen_Forearm.{side}", upper_end, lower_end, 0.145, orange, armature, f"forearm.{side}", squash=(1.0, 0.9))
+        add_uv_sphere(f"Oyen_Hand.{side}", (0.70 * sign, -0.07, 0.80), (0.18, 0.15, 0.21), cream, armature, f"hand.{side}")
+
+        thigh_start = (0.22 * sign, 0, 0.70)
+        knee = (0.28 * sign, 0, 0.43)
+        ankle = (0.28 * sign, 0, 0.16)
+        add_capsule(f"Oyen_Thigh.{side}", thigh_start, knee, 0.21, orange, armature, f"thigh.{side}", squash=(1.0, 0.92))
+        add_capsule(f"Oyen_Shin.{side}", knee, ankle, 0.18, orange, armature, f"shin.{side}", squash=(1.0, 0.92))
+        add_uv_sphere(f"Oyen_Foot.{side}", (0.28 * sign, -0.18, 0.10), (0.24, 0.32, 0.13), cream, armature, f"foot.{side}")
+
+    for index, x in enumerate((-0.18, 0.0, 0.18), start=1):
+        add_cube(
+            f"Oyen_ForeheadStripe.{index:02d}",
+            (x, -0.468, 2.28 - abs(x) * 0.32),
+            (0.045, 0.018, 0.16),
+            cocoa,
+            rotation=(math.radians(7), 0, math.radians(-x * 55)),
+            parent=armature,
+            bone="head",
+            bevel=0.03,
+        )
+    for side, sign in (("L", -1), ("R", 1)):
+        for index, z in enumerate((1.94, 1.78), start=1):
+            add_cube(
+                f"Oyen_CheekStripe.{side}.{index}",
+                (0.43 * sign, -0.35, z),
+                (0.12, 0.025, 0.035),
+                cocoa,
+                rotation=(0, 0, math.radians(18 * sign)),
+                parent=armature,
+                bone="head",
+                bevel=0.025,
+            )
+
+    add_torus("Oyen_Belt", (0, 0, 0.78), 0.55, 0.055, cocoa, parent=armature, bone="pelvis")
+    add_cube("Oyen_ClothFront", (0, -0.43, 0.58), (0.28, 0.045, 0.25), orange, rotation=(math.radians(10), 0, 0), parent=armature, bone="pelvis", bevel=0.06)
+    add_torus("Oyen_Necklace", (0, -0.02, 1.64), 0.38, 0.027, cocoa, rotation=(math.radians(90), 0, 0), parent=armature, bone="chest")
+    add_cone("Oyen_Pendant", (0, -0.40, 1.47), (0.09, 0.04, 0.16), cream, rotation=(math.radians(90), 0, 0), parent=armature, bone="chest")
+
+    tail_materials = [orange, cocoa, orange, cocoa, orange]
+    tail_points = [
+        ((0.0, 0.12, 0.75), (0.35, 0.18, 0.84)),
+        ((0.35, 0.18, 0.84), (0.68, 0.20, 1.00)),
+        ((0.68, 0.20, 1.00), (0.96, 0.18, 1.18)),
+        ((0.96, 0.18, 1.18), (1.18, 0.12, 1.32)),
+        ((1.18, 0.12, 1.32), (1.38, 0.04, 1.42)),
+    ]
+    for index, (start, end) in enumerate(tail_points, start=1):
+        add_capsule(
+            f"Oyen_Tail.{index:02d}",
+            start,
+            end,
+            0.15 if index < 4 else 0.13,
+            tail_materials[index - 1],
+            armature,
+            f"tail.{index:02d}",
+            squash=(1.0, 0.95),
+        )
+
+    add_cube("Oyen_Mouth", (0, -0.515, 1.745), (0.12, 0.018, 0.018), cocoa, parent=armature, bone="jaw", bevel=0.018)
+    add_cone("Oyen_Fang.L", (-0.09, -0.51, 1.73), (0.025, 0.02, 0.07), white, rotation=(math.radians(180), 0, 0), parent=armature, bone="jaw")
+    add_cone("Oyen_Fang.R", (0.09, -0.51, 1.73), (0.025, 0.02, 0.07), white, rotation=(math.radians(180), 0, 0), parent=armature, bone="jaw")
+
+    armature["oyen_character"] = "Oyen Purba"
+    armature["rig_version"] = "1.0"
+    armature["brand_colors"] = "Blaze Orange, Sun Cream, Deep Cocoa, Amber Eyes, Leaf Teal"
+
+
+def keyframe_pose_bone(bone, frame, location=None, rotation=None, scale=None):
+    bone.rotation_mode = "XYZ"
+    if location is not None:
+        bone.location = location
+        bone.keyframe_insert(data_path="location", frame=frame)
+    if rotation is not None:
+        bone.rotation_euler = rotation
+        bone.keyframe_insert(data_path="rotation_euler", frame=frame)
+    if scale is not None:
+        bone.scale = scale
+        bone.keyframe_insert(data_path="scale", frame=frame)
+
+
+def set_interpolation(armature):
+    if not armature.animation_data or not armature.animation_data.action:
+        return
+    for fcurve in armature.animation_data.action.fcurves:
+        for point in fcurve.keyframe_points:
+            point.interpolation = "BEZIER"
+
+
+def animate_rig(armature):
+    scene = bpy.context.scene
+    fps = int(JOB["timeline"]["fps"])
+    total = max(2, int(JOB["timeline"]["total_frames"]))
+    armature.animation_data_clear()
+    pose = armature.pose.bones
+
+    cycle = max(8, int(fps * 0.75))
+    root_start_x = -0.9
+    root_end_x = 0.9
+
+    for frame in range(1, total + 1, max(1, cycle // 4)):
+        phase = ((frame - 1) / cycle) * math.tau
+        progress = (frame - 1) / max(1, total - 1)
+        bounce = 0.035 * (1.0 - math.cos(phase * 2.0))
+        sway = math.radians(4.0) * math.sin(phase)
+        leg_swing = math.radians(27.0) * math.sin(phase)
+        arm_swing = math.radians(34.0) * math.sin(phase)
+        knee_bend_l = math.radians(18.0) * max(0.0, -math.sin(phase))
+        knee_bend_r = math.radians(18.0) * max(0.0, math.sin(phase))
+
+        keyframe_pose_bone(pose["root"], frame, location=(root_start_x + (root_end_x - root_start_x) * progress, 0.0, bounce))
+        keyframe_pose_bone(pose["pelvis"], frame, rotation=(0.0, math.radians(2.5) * math.sin(phase * 2.0), sway))
+        keyframe_pose_bone(pose["spine"], frame, rotation=(math.radians(2.0) * math.sin(phase * 2.0), 0.0, -sway * 0.7))
+        keyframe_pose_bone(pose["chest"], frame, rotation=(math.radians(-2.0) * math.sin(phase * 2.0), 0.0, sway * 0.4))
+        keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(3.0) * math.sin(phase * 2.0), 0.0, math.radians(5.5) * math.sin(phase * 0.5)))
+        keyframe_pose_bone(pose["jaw"], frame, rotation=(math.radians(3.5) * max(0.0, math.sin(phase * 0.5)), 0.0, 0.0))
+        keyframe_pose_bone(pose["ear.L"], frame, rotation=(0.0, math.radians(4.0) * math.sin(phase * 1.7), math.radians(2.0)))
+        keyframe_pose_bone(pose["ear.R"], frame, rotation=(0.0, -math.radians(4.0) * math.sin(phase * 1.7), -math.radians(2.0)))
+
+        keyframe_pose_bone(pose["upper_arm.L"], frame, rotation=(arm_swing, 0.0, math.radians(-4.0)))
+        keyframe_pose_bone(pose["upper_arm.R"], frame, rotation=(-arm_swing, 0.0, math.radians(4.0)))
+        keyframe_pose_bone(pose["forearm.L"], frame, rotation=(math.radians(-10.0) - arm_swing * 0.18, 0.0, 0.0))
+        keyframe_pose_bone(pose["forearm.R"], frame, rotation=(math.radians(-10.0) + arm_swing * 0.18, 0.0, 0.0))
+
+        keyframe_pose_bone(pose["thigh.L"], frame, rotation=(-leg_swing, 0.0, math.radians(-2.0)))
+        keyframe_pose_bone(pose["thigh.R"], frame, rotation=(leg_swing, 0.0, math.radians(2.0)))
+        keyframe_pose_bone(pose["shin.L"], frame, rotation=(knee_bend_l, 0.0, 0.0))
+        keyframe_pose_bone(pose["shin.R"], frame, rotation=(knee_bend_r, 0.0, 0.0))
+        keyframe_pose_bone(pose["foot.L"], frame, rotation=(math.radians(-8.0) * math.sin(phase), 0.0, 0.0))
+        keyframe_pose_bone(pose["foot.R"], frame, rotation=(math.radians(8.0) * math.sin(phase), 0.0, 0.0))
+

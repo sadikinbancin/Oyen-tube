@@ -8,7 +8,7 @@ sdk_version: 5.49.1
 app_file: app_v04.py
 pinned: false
 license: mit
-short_description: Oyen Purba with a verified Blender armature, MP4 and editable blend file
+short_description: Oyen Purba Blender rig with MP4 and blend output
 ---
 
 # Oyen Purba 3D Rig Studio

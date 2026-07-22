@@ -1,0 +1,8 @@
+
+# Runtime proof appended after main() returns successfully.
+if __name__ == "__main__":
+    oyen_rig = bpy.data.objects.get("Oyen_Purba_Rig")
+    if oyen_rig and oyen_rig.type == "ARMATURE":
+        print(f"OYEN_RIG_BONES count={len(oyen_rig.data.bones)}")
+    else:
+        raise RuntimeError("Oyen_Purba_Rig armature was not found after render")

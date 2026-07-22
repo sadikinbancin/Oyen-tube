@@ -16,20 +16,44 @@ from oyen_runtime import BlenderRuntimeError, _prepare_script, find_blender  # n
 
 
 SAMPLE_JOB = {
-    "job_id": "test-job",
-    "project": {"prompt": "Oyen walks and waves"},
+    "job_id": "test-motion-job",
+    "project": {"prompt": "Oyen berlari ke depan lalu berhenti."},
+    "motion_plan": {
+        "coordinate_system": {"character_forward": "-Y", "right": "+X", "up": "+Z"},
+        "clips": [
+            {
+                "type": "run",
+                "start": 0.0,
+                "end": 2.2,
+                "direction": "forward",
+                "distance": 2.0,
+                "intensity": 0.9,
+                "target": "",
+            },
+            {
+                "type": "stop",
+                "start": 2.2,
+                "end": 3.0,
+                "direction": "none",
+                "distance": 0.0,
+                "intensity": 0.7,
+                "target": "",
+            },
+        ],
+        "camera": [
+            {
+                "start": 0.0,
+                "end": 3.0,
+                "shot": "medium",
+                "angle": "three_quarter",
+                "follow": True,
+            }
+        ],
+    },
     "timeline": {
         "duration_seconds": 3,
         "fps": 12,
         "total_frames": 36,
-        "scenes": [
-            {
-                "start_seconds": 0,
-                "end_seconds": 3,
-                "camera": "wide establishing shot",
-                "action": "Oyen walks",
-            }
-        ],
     },
     "render": {
         "engine": "BLENDER_WORKBENCH",
@@ -42,15 +66,19 @@ SAMPLE_JOB = {
 
 
 class OyenRuntimeTests(unittest.TestCase):
-    def test_prepare_script_contains_runtime_paths_and_rig_proof(self) -> None:
+    def test_prepare_script_contains_runtime_paths_rig_and_motion_proof(self) -> None:
         script = _prepare_script(SAMPLE_JOB)
         self.assertIn("OYEN_OUTPUT_DIR", script)
         self.assertIn("preview_resolution_percentage", script)
         self.assertIn("BLENDER_WORKBENCH", script)
         self.assertIn("Oyen_Purba_Rig", script)
+        self.assertIn("OYEN_MOTION_AI_SUCCESS", script)
+        self.assertIn("OYEN_MOTION_PLAN_EMBEDDED", script)
+        self.assertIn("Oyen_AI_Motion_Plan.json", script)
         self.assertIn("OYEN_RIG_V1_SUCCESS", script)
         self.assertIn("OYEN_RIG_BONES count=", script)
         self.assertIn("OYEN_WORKER_SUCCESS", script)
+        self.assertIn('"forward": (0.0, -1.0)', script)
 
     def test_find_blender_accepts_explicit_executable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

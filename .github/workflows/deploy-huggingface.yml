@@ -19,9 +19,9 @@ concurrency:
 
 jobs:
   deploy:
-    name: Sync and verify lako123/Belajarh-ani
+    name: Sync, render MP4, and verify lako123/Belajarh-ani
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Mark deployment pending
@@ -35,7 +35,7 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and checking Oyen Space"}'
+            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and smoke-rendering Oyen MP4"}'
 
       - name: Checkout GitHub repository
         uses: actions/checkout@v4
@@ -112,21 +112,105 @@ jobs:
           fi
           exit 1
 
+      - name: Set up Python for MP4 smoke test
+        if: steps.health.outcome == 'success'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Render and validate a real MP4
+        id: smoke
+        if: steps.health.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "gradio_client==1.13.3"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import shutil
+          from pathlib import Path
+          from typing import Any, Iterable
+
+          from gradio_client import Client
+
+
+          def values(value: Any) -> Iterable[str]:
+              if value is None:
+                  return
+              if isinstance(value, (str, Path)):
+                  yield str(value)
+                  return
+              if isinstance(value, dict):
+                  for item in value.values():
+                      yield from values(item)
+                  return
+              if isinstance(value, (list, tuple)):
+                  for item in value:
+                      yield from values(item)
+                  return
+              path = getattr(value, "path", None)
+              if path:
+                  yield str(path)
+
+
+          client = Client("https://lako123-belajarh-ani.hf.space", verbose=True)
+          result = client.predict(
+              "Oyen berjalan dua langkah, menoleh ke kamera, lalu mengibaskan ekornya.",
+              "3D Blender",
+              "Oyen Cartoon",
+              3,
+              "9:16",
+              12,
+              "360p cepat",
+              False,
+              api_name="/render_mp4",
+          )
+
+          print("SMOKE_RESULT:", result)
+          candidates = []
+          for raw in values(result):
+              path = Path(raw)
+              if path.suffix.lower() == ".mp4" and path.is_file():
+                  candidates.append(path)
+
+          if not candidates:
+              raise RuntimeError("The Space returned no downloadable MP4 file")
+
+          video = max(candidates, key=lambda item: item.stat().st_size)
+          if video.stat().st_size < 1024:
+              raise RuntimeError(f"MP4 is too small: {video.stat().st_size} bytes")
+
+          target = Path("/tmp/oyen-smoke-test.mp4")
+          shutil.copy2(video, target)
+          print(f"OYEN_MP4_SMOKE_SUCCESS path={target} bytes={target.stat().st_size}")
+          PY
+
+      - name: Upload smoke-test MP4
+        if: steps.smoke.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oyen-smoke-test-mp4
+          path: /tmp/oyen-smoke-test.mp4
+          retention-days: 3
+          if-no-files-found: error
+
       - name: Publish deployment status
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           HEALTH_OUTCOME: ${{ steps.health.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
           set -euo pipefail
 
-          if [ "$DEPLOY_OUTCOME" = "success" ] && [ "$HEALTH_OUTCOME" = "success" ]; then
+          if [ "$DEPLOY_OUTCOME" = "success" ] && [ "$HEALTH_OUTCOME" = "success" ] && [ "$SMOKE_OUTCOME" = "success" ]; then
             STATE="success"
-            DESCRIPTION="Oyen MP4 Space deployed and healthy"
+            DESCRIPTION="Oyen deployed and produced a valid MP4"
           else
             STATE="failure"
-            DESCRIPTION="Oyen Space deploy or health check failed"
+            DESCRIPTION="Oyen deploy, health check, or MP4 render failed"
           fi
 
           PAYLOAD=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$STATE" "$DESCRIPTION")
@@ -144,14 +228,15 @@ jobs:
         env:
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           HEALTH_OUTCOME: ${{ steps.health.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
           echo "### Oyen Hugging Face deployment" >> "$GITHUB_STEP_SUMMARY"
           echo "- Push outcome: \`${DEPLOY_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Runtime health: \`${HEALTH_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Source: \`hf_space/\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Real MP4 smoke render: \`${SMOKE_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Target: \`lako123/Belajarh-ani\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Expected API: \`/render_mp4\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API tested: \`/render_mp4\`" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Fail workflow when deployment is not healthy
-        if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success'
+      - name: Fail workflow unless MP4 was produced
+        if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success' || steps.smoke.outcome != 'success'
         run: exit 1

@@ -1,4 +1,4 @@
-name: Validate Oyen V0.2
+name: Validate Oyen V0.3
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - "hf_space/**"
       - "tests/test_oyen_bridge.py"
+      - "tests/test_oyen_runtime.py"
       - ".github/workflows/validate-oyen-v02.yml"
   workflow_dispatch:
 
@@ -15,7 +16,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: oyen-v02-validation
+  group: oyen-v03-validation
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +36,7 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"oyen-v02/validate","description":"Validating Blender worker package"}'
+            --data '{"state":"pending","context":"oyen-v03/validate","description":"Validating direct MP4 runtime"}'
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,13 +46,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate Python and worker package
+      - name: Validate Python and render adapter
         id: validation
         continue-on-error: true
         run: |
           set -euo pipefail
-          python -m py_compile hf_space/app.py hf_space/oyen_bridge.py tests/test_oyen_bridge.py
-          python -m unittest discover -s tests -p 'test_oyen_bridge.py' -v
+          python -m py_compile \
+            hf_space/app.py \
+            hf_space/oyen_bridge.py \
+            hf_space/oyen_runtime.py \
+            tests/test_oyen_bridge.py \
+            tests/test_oyen_runtime.py
+          python -m unittest discover -s tests -p 'test_oyen_*.py' -v
+          grep -qx 'blender' hf_space/packages.txt
 
       - name: Publish validation status
         if: always()
@@ -63,13 +70,13 @@ jobs:
 
           if [ "$VALIDATION_OUTCOME" = "success" ]; then
             STATE="success"
-            DESCRIPTION="Oyen V0.2 worker package is valid"
+            DESCRIPTION="Oyen V0.3 direct MP4 runtime is valid"
           else
             STATE="failure"
-            DESCRIPTION="Oyen V0.2 validation failed"
+            DESCRIPTION="Oyen V0.3 validation failed"
           fi
 
-          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v02/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
+          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v03/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
 
           curl --fail-with-body \
             --request POST \

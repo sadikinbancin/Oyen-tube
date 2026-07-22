@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any
 
 import gradio as gr
+import spaces
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.1.1"
 OUTPUT_DIR = Path(tempfile.gettempdir()) / "oyen_animation_jobs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -68,6 +69,7 @@ def _build_scenes(prompt: str, duration: int, mode: str) -> list[dict[str, Any]]
     return scenes
 
 
+@spaces.GPU
 def create_animation_job(
     prompt: str,
     mode: str,
@@ -135,7 +137,7 @@ def create_animation_job(
         "notes": [
             "V0.1 creates a production-ready JSON plan.",
             "Blender execution will be connected in the next development stage.",
-            "ZeroGPU is reserved for future PyTorch AI functions, not Blender rendering.",
+            "The generation function is ZeroGPU-compatible through @spaces.GPU.",
         ],
     }
 
@@ -251,7 +253,7 @@ V0.1 membuat rancangan produksi animasi 2D atau 3D yang nanti dieksekusi oleh me
     gr.Markdown(
         """
 ### Pipeline V0.1
-GitHub menyimpan kode utama. Hugging Face menjalankan UI Gradio. ZeroGPU akan dipakai saat model AI PyTorch mulai ditambahkan. Render Blender tetap disiapkan sebagai worker terpisah.
+GitHub menyimpan kode utama. Hugging Face menjalankan UI Gradio. ZeroGPU menangani fungsi AI yang dihias dengan `@spaces.GPU`. Render Blender tetap disiapkan sebagai worker terpisah.
 """
     )
 

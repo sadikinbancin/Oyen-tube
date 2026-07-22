@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -11,7 +12,7 @@ from oyen_bridge import build_blender_script
 
 
 class BlenderRuntimeError(RuntimeError):
-    """Raised when Blender cannot create a valid Oyen preview."""
+    """Raised when Blender cannot create a valid rigged Oyen preview."""
 
 
 def find_blender() -> str:
@@ -31,43 +32,22 @@ def find_blender() -> str:
     )
 
 
-def _tail(text: str, limit: int = 6000) -> str:
+def _tail(text: str, limit: int = 7000) -> str:
     clean = (text or "").strip()
     return clean[-limit:] if len(clean) > limit else clean
 
 
 def _prepare_script(job: dict[str, Any]) -> str:
-    """Adapt the portable worker script for the Hugging Face runtime."""
-    script = build_blender_script(job)
-    script = script.replace(
-        'OUTPUT_ROOT = os.path.abspath("//oyen_output")',
-        'OUTPUT_ROOT = os.path.abspath(os.environ.get("OYEN_OUTPUT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "oyen_output")))',
-    )
-    script = script.replace(
-        "scene.render.resolution_percentage = 50",
-        'scene.render.resolution_percentage = int(render.get("preview_resolution_percentage", 50))',
-    )
-    old_engine_block = '''    preferred_engine = str(render.get("engine", "BLENDER_EEVEE_NEXT"))
-    available_engines = {"BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH", "CYCLES"}
-    scene.render.engine = preferred_engine if preferred_engine in available_engines else "BLENDER_EEVEE_NEXT"'''
-    new_engine_block = '''    preferred_engine = str(render.get("engine", "BLENDER_EEVEE_NEXT"))
-    engine_candidates = [preferred_engine, "BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "BLENDER_WORKBENCH"]
-    for engine_name in engine_candidates:
-        try:
-            scene.render.engine = engine_name
-            break
-        except Exception:
-            continue'''
-    script = script.replace(old_engine_block, new_engine_block)
-    return script
+    """Build the complete Oyen Purba Blender script."""
+    return build_blender_script(job)
 
 
 def render_job(
     job: dict[str, Any],
     output_root: str | Path,
-    timeout: int = 180,
+    timeout: int = 300,
 ) -> dict[str, str | float]:
-    """Generate a Blender script, run Blender headlessly, and return a validated MP4 path."""
+    """Run Blender and validate armature, editable blend file, and MP4 output."""
     blender = find_blender()
     root = Path(output_root)
     root.mkdir(parents=True, exist_ok=True)
@@ -136,9 +116,21 @@ def render_job(
     )
     log_path.write_text(combined_log, encoding="utf-8")
 
-    if completed.returncode != 0 or "OYEN_WORKER_SUCCESS" not in completed.stdout:
+    rig_success = "OYEN_RIG_V1_SUCCESS" in completed.stdout
+    worker_success = "OYEN_WORKER_SUCCESS" in completed.stdout
+    bone_match = re.search(r"OYEN_RIG_BONES\s+count=(\d+)", completed.stdout)
+    if completed.returncode != 0 or not rig_success or not worker_success or not bone_match:
         details = _tail(completed.stderr or completed.stdout)
-        raise BlenderRuntimeError(f"Blender gagal merender preview. Log terakhir:\n{details}")
+        raise BlenderRuntimeError(
+            "Blender belum membuktikan bahwa armature Oyen Purba berhasil dibuat dan dirender. "
+            f"Log terakhir:\n{details}"
+        )
+
+    bone_count = int(bone_match.group(1))
+    if bone_count < 30:
+        raise BlenderRuntimeError(
+            f"Armature ditemukan tetapi hanya memiliki {bone_count} tulang; Rig V1 membutuhkan minimal 30."
+        )
 
     video_path = output_dir / "oyen_preview.mp4"
     blend_path = output_dir / "oyen_preview.blend"
@@ -149,14 +141,20 @@ def render_job(
 
     if not video_path.is_file() or video_path.stat().st_size < 1024:
         raise BlenderRuntimeError(
-            "Blender selesai tetapi file MP4 tidak ditemukan atau kosong. Periksa blender.log."
+            "Armature berhasil, tetapi file MP4 tidak ditemukan atau kosong. Periksa blender.log."
+        )
+    if not blend_path.is_file() or blend_path.stat().st_size < 4096:
+        raise BlenderRuntimeError(
+            "Video berhasil, tetapi file .blend yang berisi armature tidak ditemukan atau kosong."
         )
 
     return {
         "video": str(video_path),
-        "blend": str(blend_path) if blend_path.is_file() else "",
+        "blend": str(blend_path),
         "script": str(script_path),
         "log": str(log_path),
         "elapsed_seconds": elapsed,
         "video_size_bytes": float(video_path.stat().st_size),
+        "blend_size_bytes": float(blend_path.stat().st_size),
+        "rig_bone_count": float(bone_count),
     }

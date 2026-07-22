@@ -1,4 +1,4 @@
-name: Deploy and Verify Oyen MP4
+name: Deploy and Verify Oyen Purba Rig
 
 on:
   push:
@@ -20,79 +20,83 @@ concurrency:
 jobs:
   deploy-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Mark deployment pending
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
           curl --fail-with-body \
             --request POST \
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying Oyen and rendering a real MP4"}'
+            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and rendering Oyen Purba Rig V0.4"}'
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Sync Gradio app to Hugging Face
+      - name: Sync Oyen Purba app to Hugging Face
         id: deploy
         continue-on-error: true
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          set -euo pipefail
-          test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
-          test -f hf_space/app.py
-          test -f hf_space/README.md
-          test -f hf_space/requirements.txt
-          test -f hf_space/packages.txt
-          grep -qx "blender" hf_space/packages.txt
-          grep -qx "libegl1" hf_space/packages.txt
+          set -o pipefail
+          {
+            set -euo pipefail
+            test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
+            test -f hf_space/app_v04.py || { echo "hf_space/app_v04.py is missing"; exit 1; }
+            test -f hf_space/README.md || { echo "hf_space/README.md is missing"; exit 1; }
+            test -f hf_space/requirements.txt || { echo "hf_space/requirements.txt is missing"; exit 1; }
+            test -f hf_space/packages.txt || { echo "hf_space/packages.txt is missing"; exit 1; }
+            grep -q '^app_file: app_v04.py$' hf_space/README.md
+            grep -qx 'blender' hf_space/packages.txt
+            grep -qx 'libegl1' hf_space/packages.txt
 
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git lfs install
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git lfs install
 
-          rm -rf /tmp/oyen-hf-space
-          git clone "https://lako123:${HF_TOKEN}@huggingface.co/spaces/lako123/Belajarh-ani" /tmp/oyen-hf-space
-          rsync -av --delete --exclude=".git/" hf_space/ /tmp/oyen-hf-space/
+            rm -rf /tmp/oyen-hf-space
+            git clone "https://lako123:${HF_TOKEN}@huggingface.co/spaces/lako123/Belajarh-ani" /tmp/oyen-hf-space
+            rsync -av --delete --exclude='.git/' hf_space/ /tmp/oyen-hf-space/
 
-          cd /tmp/oyen-hf-space
-          git add -A
-          if git diff --cached --quiet; then
-            echo "Hugging Face Space is already up to date."
-          else
-            git commit -m "Deploy Oyen from GitHub ${GITHUB_SHA::7}"
-            git push origin HEAD:main
-          fi
+            cd /tmp/oyen-hf-space
+            git status --short
+            git add -A
+            if git diff --cached --quiet; then
+              echo "Hugging Face Space is already up to date."
+            else
+              git commit -m "Deploy Oyen Purba Rig V0.4 from GitHub ${GITHUB_SHA::7}"
+              git push origin HEAD:main
+            fi
+          } 2>&1 | tee /tmp/oyen-deploy.log
 
-      - name: Wait for healthy render API
+      - name: Wait for Oyen Purba render API
         id: health
         if: steps.deploy.outcome == 'success'
         continue-on-error: true
         run: |
-          set -euo pipefail
-          for attempt in $(seq 1 100); do
-            code=$(curl --silent --location --max-time 20 \
-              --output /tmp/space-config.json \
-              --write-out "%{http_code}" \
-              "https://lako123-belajarh-ani.hf.space/config" || true)
+          set -o pipefail
+          {
+            for attempt in $(seq 1 100); do
+              code=$(curl --silent --location --max-time 20 \
+                --output /tmp/space-config.json \
+                --write-out "%{http_code}" \
+                "https://lako123-belajarh-ani.hf.space/config" || true)
 
-            if [ "$code" = "200" ] && grep -q "render_mp4" /tmp/space-config.json; then
-              echo "The Oyen render API is ready."
-              exit 0
-            fi
-
-            echo "Attempt ${attempt}/100: build or startup still running (HTTP ${code})."
-            sleep 15
-          done
-          echo "The Space did not become healthy."
-          exit 1
+              if [ "$code" = "200" ] && grep -q 'render_mp4' /tmp/space-config.json; then
+                echo "Oyen Purba /render_mp4 API is ready."
+                exit 0
+              fi
+              echo "Attempt ${attempt}/100: Space is building or starting (HTTP ${code})."
+              sleep 15
+            done
+            echo "The Space did not become healthy."
+            exit 1
+          } 2>&1 | tee /tmp/oyen-health.log
 
       - name: Set up Python
         if: steps.health.outcome == 'success'
@@ -100,7 +104,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Render and validate a real MP4
+      - name: Render and validate real rigged outputs
         id: smoke
         if: steps.health.outcome == 'success'
         continue-on-error: true
@@ -139,9 +143,9 @@ jobs:
 
           client = Client("https://lako123-belajarh-ani.hf.space", verbose=True)
           result = client.predict(
-              "Oyen berjalan dua langkah, menoleh ke kamera, lalu mengibaskan ekornya.",
+              "Oyen berjalan dua langkah, menoleh ke kamera, lalu melambaikan tangan dan mengibaskan ekornya.",
               "3D Blender",
-              "Oyen Cartoon",
+              "Oyen Purba Official",
               3,
               "9:16",
               12,
@@ -151,31 +155,44 @@ jobs:
           )
           print("SMOKE_RESULT:", result)
 
-          candidates = []
-          for raw in walk(result):
-              path = Path(raw)
-              if path.suffix.lower() == ".mp4" and path.is_file():
-                  candidates.append(path)
+          status = str(result[0]) if isinstance(result, (list, tuple)) and result else ""
+          if "Oyen Purba 3D Rig V1 selesai" not in status or "Armature terverifikasi" not in status:
+              raise RuntimeError(f"The Space did not report a verified Oyen armature: {status}")
 
-          if not candidates:
-              raise RuntimeError("The Space returned no downloadable MP4 file")
+          paths = [Path(raw) for raw in walk(result)]
+          videos = [path for path in paths if path.suffix.lower() == ".mp4" and path.is_file()]
+          blends = [path for path in paths if path.suffix.lower() == ".blend" and path.is_file()]
+          if not videos:
+              raise RuntimeError("The Space returned no downloadable MP4")
+          if not blends:
+              raise RuntimeError("The Space returned no downloadable rigged .blend")
 
-          video = max(candidates, key=lambda item: item.stat().st_size)
+          video = max(videos, key=lambda item: item.stat().st_size)
+          blend = max(blends, key=lambda item: item.stat().st_size)
           if video.stat().st_size < 1024:
               raise RuntimeError(f"MP4 is too small: {video.stat().st_size} bytes")
+          if blend.stat().st_size < 4096:
+              raise RuntimeError(f"Blend file is too small: {blend.stat().st_size} bytes")
 
-          target = Path("/tmp/oyen-verified.mp4")
-          shutil.copy2(video, target)
-          print(f"OYEN_MP4_VERIFIED path={target} bytes={target.stat().st_size}")
+          video_target = Path("/tmp/oyen-purba-verified.mp4")
+          blend_target = Path("/tmp/oyen-purba-rig-verified.blend")
+          shutil.copy2(video, video_target)
+          shutil.copy2(blend, blend_target)
+          print(
+              "OYEN_PURBA_RIG_VERIFIED "
+              f"mp4_bytes={video_target.stat().st_size} blend_bytes={blend_target.stat().st_size}"
+          )
           PY
           } 2>&1 | tee /tmp/oyen-smoke.log
 
-      - name: Upload verified MP4
+      - name: Upload verified Oyen outputs
         if: steps.smoke.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: oyen-verified-mp4
-          path: /tmp/oyen-verified.mp4
+          name: oyen-purba-rig-v04-verified
+          path: |
+            /tmp/oyen-purba-verified.mp4
+            /tmp/oyen-purba-rig-verified.blend
           retention-days: 3
           if-no-files-found: error
 
@@ -187,23 +204,21 @@ jobs:
           HEALTH_OUTCOME: ${{ steps.health.outcome }}
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
-          set -euo pipefail
           {
-            echo "# Oyen MP4 deployment diagnostics"
+            echo "# Oyen Purba Rig V0.4 deployment diagnostics"
             echo
             echo "- Source commit: \`${GITHUB_SHA}\`"
             echo "- Deploy: \`${DEPLOY_OUTCOME}\`"
             echo "- Health: \`${HEALTH_OUTCOME}\`"
-            echo "- Smoke MP4: \`${SMOKE_OUTCOME}\`"
+            echo "- Rigged MP4 smoke test: \`${SMOKE_OUTCOME}\`"
             echo
-            echo '```text'
-            if [ -f /tmp/oyen-smoke.log ]; then
-              tail -c 16000 /tmp/oyen-smoke.log
-            else
-              echo "Smoke test did not run."
-            fi
-            echo
-            echo '```'
+            for file in /tmp/oyen-deploy.log /tmp/oyen-health.log /tmp/oyen-smoke.log; do
+              echo "## $(basename "$file")"
+              echo '```text'
+              if [ -f "$file" ]; then tail -c 18000 "$file"; else echo "Step did not run."; fi
+              echo
+              echo '```'
+            done
           } > /tmp/latest.md
 
           rm -rf /tmp/diagnostics-repo
@@ -226,15 +241,13 @@ jobs:
           HEALTH_OUTCOME: ${{ steps.health.outcome }}
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
-          set -euo pipefail
           if [ "$DEPLOY_OUTCOME" = "success" ] && [ "$HEALTH_OUTCOME" = "success" ] && [ "$SMOKE_OUTCOME" = "success" ]; then
             state="success"
-            description="Oyen deployed and produced a verified MP4"
+            description="Oyen Purba armature, blend and MP4 verified"
           else
             state="failure"
-            description="Deploy, health check, or MP4 render failed"
+            description="Oyen Purba deploy or rigged render verification failed"
           fi
-
           payload=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$state" "$description")
           curl --fail-with-body \
             --request POST \
@@ -244,6 +257,6 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             --data "$payload"
 
-      - name: Fail unless MP4 is verified
+      - name: Fail unless rigged outputs are verified
         if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success' || steps.smoke.outcome != 'success'
         run: exit 1

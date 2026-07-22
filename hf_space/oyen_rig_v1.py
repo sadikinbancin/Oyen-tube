@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Any
 
 _PARTS_DIR = Path(__file__).resolve().parent / "rig_parts"
-_PART_NAMES = tuple(f"oyen_rig_v1_{index:02d}.txt" for index in range(1, 6))
+_PART_NAMES = (
+    "oyen_rig_v1_01.txt",
+    "oyen_rig_v1_02.txt",
+    "oyen_rig_v1_03.txt",
+    "oyen_rig_v1_04.txt",
+    "oyen_rig_v1_04b.txt",
+    "oyen_rig_v1_05.txt",
+)
 
 
 def _load_template() -> str:
@@ -22,6 +29,6 @@ def _load_template() -> str:
 
 
 def build_rigged_script(job: dict[str, Any]) -> str:
-    """Build a standalone Blender script containing the Oyen Purba Rig V1."""
+    """Build a standalone Blender script containing Oyen Purba Motion AI V0.5."""
     job_json = json.dumps(job, ensure_ascii=False, indent=2)
     return _load_template().replace("__JOB_JSON__", job_json)

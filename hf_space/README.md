@@ -8,18 +8,19 @@ sdk_version: 5.49.1
 app_file: app.py
 pinned: false
 license: mit
-short_description: Prompt to animation plan for the Oyen Blender pipeline
+short_description: Prompt to Blender worker package for Oyen animation
 ---
 
 # Oyen AI Animation Studio
 
-Gradio interface for planning Oyen animations before they are executed by the Blender automation pipeline.
+Gradio interface for turning an animation prompt into a Blender-ready worker package.
 
-## V0.1
+## V0.2
 
-- Create an `animation_job.json` from a story prompt.
-- Choose 2D Grease Pencil or 3D Blender mode.
-- Configure duration, FPS, aspect ratio, resolution, visual style, and audio preparation.
-- Download the generated production plan.
+- Create `animation_job.json` from a story prompt.
+- Generate a standalone `oyen_blender_scene.py`.
+- Download a ZIP with Windows and Linux/macOS launchers.
+- Build a procedural Oyen placeholder, animated camera, lighting, `.blend`, and MP4 preview.
+- Follow the headless Blender execution pattern used by the main `blender-mcp` codebase.
 
-The Blender renderer is not executed inside this Space yet. ZeroGPU will be used later for PyTorch-based AI tasks, while Blender rendering will run through a separate worker.
+The Hugging Face ZeroGPU Space prepares the package. Blender itself runs on a local computer or remote worker where Blender is installed.

@@ -19,9 +19,9 @@ concurrency:
 
 jobs:
   deploy:
-    name: Sync hf_space to lako123/Belajarh-ani
+    name: Sync and verify lako123/Belajarh-ani
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Mark deployment pending
@@ -35,7 +35,7 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying Oyen to Hugging Face"}'
+            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and checking Oyen Space"}'
 
       - name: Checkout GitHub repository
         uses: actions/checkout@v4
@@ -54,6 +54,8 @@ jobs:
           test -f hf_space/app.py || { echo "hf_space/app.py is missing"; exit 1; }
           test -f hf_space/README.md || { echo "hf_space/README.md is missing"; exit 1; }
           test -f hf_space/requirements.txt || { echo "hf_space/requirements.txt is missing"; exit 1; }
+          test -f hf_space/packages.txt || { echo "hf_space/packages.txt is missing"; exit 1; }
+          grep -qx "blender" hf_space/packages.txt || { echo "Blender package is missing"; exit 1; }
 
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -75,20 +77,56 @@ jobs:
           git commit -m "Deploy Oyen from GitHub ${GITHUB_SHA::7}"
           git push origin HEAD:main
 
+      - name: Wait for healthy Gradio MP4 endpoint
+        id: health
+        if: steps.deploy.outcome == 'success'
+        continue-on-error: true
+        env:
+          SPACE_CONFIG: https://lako123-belajarh-ani.hf.space/config
+        run: |
+          set -euo pipefail
+          echo "Waiting for Hugging Face build and startup..."
+
+          for attempt in $(seq 1 80); do
+            HTTP_CODE=$(curl \
+              --silent \
+              --show-error \
+              --location \
+              --max-time 20 \
+              --output /tmp/oyen-space-config.json \
+              --write-out "%{http_code}" \
+              "$SPACE_CONFIG" || true)
+
+            if [ "$HTTP_CODE" = "200" ] && grep -q "render_mp4" /tmp/oyen-space-config.json; then
+              echo "Space is running and /render_mp4 is registered."
+              exit 0
+            fi
+
+            echo "Attempt ${attempt}/80: HTTP ${HTTP_CODE}; Space is still building or starting."
+            sleep 15
+          done
+
+          echo "Space did not become healthy in time."
+          if [ -f /tmp/oyen-space-config.json ]; then
+            tail -c 2000 /tmp/oyen-space-config.json || true
+          fi
+          exit 1
+
       - name: Publish deployment status
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          HEALTH_OUTCOME: ${{ steps.health.outcome }}
         run: |
           set -euo pipefail
 
-          if [ "$DEPLOY_OUTCOME" = "success" ]; then
+          if [ "$DEPLOY_OUTCOME" = "success" ] && [ "$HEALTH_OUTCOME" = "success" ]; then
             STATE="success"
-            DESCRIPTION="Oyen deployed to Hugging Face"
+            DESCRIPTION="Oyen MP4 Space deployed and healthy"
           else
             STATE="failure"
-            DESCRIPTION="Oyen deploy to Hugging Face failed"
+            DESCRIPTION="Oyen Space deploy or health check failed"
           fi
 
           PAYLOAD=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$STATE" "$DESCRIPTION")
@@ -105,13 +143,15 @@ jobs:
         if: always()
         env:
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          HEALTH_OUTCOME: ${{ steps.health.outcome }}
         run: |
           echo "### Oyen Hugging Face deployment" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Outcome: \`${DEPLOY_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Push outcome: \`${DEPLOY_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Runtime health: \`${HEALTH_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source: \`hf_space/\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Target: \`lako123/Belajarh-ani\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Space: https://huggingface.co/spaces/lako123/Belajarh-ani" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Expected API: \`/render_mp4\`" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Fail workflow when deployment failed
-        if: steps.deploy.outcome != 'success'
+      - name: Fail workflow when deployment is not healthy
+        if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success'
         run: exit 1

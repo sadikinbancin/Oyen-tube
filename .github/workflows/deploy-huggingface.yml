@@ -1,4 +1,4 @@
-name: Deploy Oyen to Hugging Face
+name: Deploy and Verify Oyen MP4
 
 on:
   push:
@@ -18,8 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Sync, render MP4, and verify lako123/Belajarh-ani
+  deploy-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -35,82 +34,67 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and smoke-rendering Oyen MP4"}'
+            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying Oyen and rendering a real MP4"}'
 
-      - name: Checkout GitHub repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy Gradio Space
+      - name: Sync Gradio app to Hugging Face
         id: deploy
         continue-on-error: true
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USERNAME: lako123
-          HF_SPACE: lako123/Belajarh-ani
         run: |
           set -euo pipefail
-
           test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
-          test -f hf_space/app.py || { echo "hf_space/app.py is missing"; exit 1; }
-          test -f hf_space/README.md || { echo "hf_space/README.md is missing"; exit 1; }
-          test -f hf_space/requirements.txt || { echo "hf_space/requirements.txt is missing"; exit 1; }
-          test -f hf_space/packages.txt || { echo "hf_space/packages.txt is missing"; exit 1; }
-          grep -qx "blender" hf_space/packages.txt || { echo "Blender package is missing"; exit 1; }
+          test -f hf_space/app.py
+          test -f hf_space/README.md
+          test -f hf_space/requirements.txt
+          test -f hf_space/packages.txt
+          grep -qx "blender" hf_space/packages.txt
+          grep -qx "libegl1" hf_space/packages.txt
 
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git lfs install
 
           rm -rf /tmp/oyen-hf-space
-          git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" /tmp/oyen-hf-space
+          git clone "https://lako123:${HF_TOKEN}@huggingface.co/spaces/lako123/Belajarh-ani" /tmp/oyen-hf-space
           rsync -av --delete --exclude=".git/" hf_space/ /tmp/oyen-hf-space/
 
           cd /tmp/oyen-hf-space
           git add -A
           if git diff --cached --quiet; then
             echo "Hugging Face Space is already up to date."
-            exit 0
+          else
+            git commit -m "Deploy Oyen from GitHub ${GITHUB_SHA::7}"
+            git push origin HEAD:main
           fi
 
-          git commit -m "Deploy Oyen from GitHub ${GITHUB_SHA::7}"
-          git push origin HEAD:main
-
-      - name: Wait for healthy Gradio MP4 endpoint
+      - name: Wait for healthy render API
         id: health
         if: steps.deploy.outcome == 'success'
         continue-on-error: true
-        env:
-          SPACE_CONFIG: https://lako123-belajarh-ani.hf.space/config
         run: |
           set -euo pipefail
-          echo "Waiting for Hugging Face build and startup..."
-
-          for attempt in $(seq 1 80); do
-            HTTP_CODE=$(curl \
-              --silent \
-              --show-error \
-              --location \
-              --max-time 20 \
-              --output /tmp/oyen-space-config.json \
+          for attempt in $(seq 1 100); do
+            code=$(curl --silent --location --max-time 20 \
+              --output /tmp/space-config.json \
               --write-out "%{http_code}" \
-              "$SPACE_CONFIG" || true)
+              "https://lako123-belajarh-ani.hf.space/config" || true)
 
-            if [ "$HTTP_CODE" = "200" ] && grep -q "render_mp4" /tmp/oyen-space-config.json; then
-              echo "Space is running and /render_mp4 is registered."
+            if [ "$code" = "200" ] && grep -q "render_mp4" /tmp/space-config.json; then
+              echo "The Oyen render API is ready."
               exit 0
             fi
 
-            echo "Attempt ${attempt}/80: HTTP ${HTTP_CODE}; Space is still building or starting."
+            echo "Attempt ${attempt}/100: build or startup still running (HTTP ${code})."
             sleep 15
           done
-
-          echo "Space did not become healthy in time."
-          if [ -f /tmp/oyen-space-config.json ]; then
-            tail -c 4000 /tmp/oyen-space-config.json || true
-          fi
+          echo "The Space did not become healthy."
           exit 1
 
-      - name: Set up Python for MP4 smoke test
+      - name: Set up Python
         if: steps.health.outcome == 'success'
         uses: actions/setup-python@v5
         with:
@@ -120,8 +104,6 @@ jobs:
         id: smoke
         if: steps.health.outcome == 'success'
         continue-on-error: true
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -o pipefail
           {
@@ -129,7 +111,6 @@ jobs:
             python - <<'PY'
           from __future__ import annotations
 
-          import os
           import shutil
           from pathlib import Path
           from typing import Any, Iterable
@@ -137,7 +118,7 @@ jobs:
           from gradio_client import Client
 
 
-          def values(value: Any) -> Iterable[str]:
+          def walk(value: Any) -> Iterable[str]:
               if value is None:
                   return
               if isinstance(value, (str, Path)):
@@ -145,22 +126,18 @@ jobs:
                   return
               if isinstance(value, dict):
                   for item in value.values():
-                      yield from values(item)
+                      yield from walk(item)
                   return
               if isinstance(value, (list, tuple)):
                   for item in value:
-                      yield from values(item)
+                      yield from walk(item)
                   return
               path = getattr(value, "path", None)
               if path:
                   yield str(path)
 
 
-          client = Client(
-              "https://lako123-belajarh-ani.hf.space",
-              token=os.environ.get("HF_TOKEN"),
-              verbose=True,
-          )
+          client = Client("https://lako123-belajarh-ani.hf.space", verbose=True)
           result = client.predict(
               "Oyen berjalan dua langkah, menoleh ke kamera, lalu mengibaskan ekornya.",
               "3D Blender",
@@ -172,10 +149,10 @@ jobs:
               False,
               api_name="/render_mp4",
           )
-
           print("SMOKE_RESULT:", result)
+
           candidates = []
-          for raw in values(result):
+          for raw in walk(result):
               path = Path(raw)
               if path.suffix.lower() == ".mp4" and path.is_file():
                   candidates.append(path)
@@ -187,22 +164,22 @@ jobs:
           if video.stat().st_size < 1024:
               raise RuntimeError(f"MP4 is too small: {video.stat().st_size} bytes")
 
-          target = Path("/tmp/oyen-smoke-test.mp4")
+          target = Path("/tmp/oyen-verified.mp4")
           shutil.copy2(video, target)
-          print(f"OYEN_MP4_SMOKE_SUCCESS path={target} bytes={target.stat().st_size}")
+          print(f"OYEN_MP4_VERIFIED path={target} bytes={target.stat().st_size}")
           PY
           } 2>&1 | tee /tmp/oyen-smoke.log
 
-      - name: Upload smoke-test MP4
+      - name: Upload verified MP4
         if: steps.smoke.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: oyen-smoke-test-mp4
-          path: /tmp/oyen-smoke-test.mp4
+          name: oyen-verified-mp4
+          path: /tmp/oyen-verified.mp4
           retention-days: 3
           if-no-files-found: error
 
-      - name: Publish diagnostic report branch
+      - name: Publish diagnostics
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -211,7 +188,6 @@ jobs:
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
           set -euo pipefail
-
           {
             echo "# Oyen MP4 deployment diagnostics"
             echo
@@ -222,32 +198,27 @@ jobs:
             echo
             echo '```text'
             if [ -f /tmp/oyen-smoke.log ]; then
-              tail -c 14000 /tmp/oyen-smoke.log
+              tail -c 16000 /tmp/oyen-smoke.log
             else
-              echo "Smoke test was not executed."
-              if [ -f /tmp/oyen-space-config.json ]; then
-                echo
-                echo "Space config response:"
-                tail -c 6000 /tmp/oyen-space-config.json
-              fi
+              echo "Smoke test did not run."
             fi
             echo
             echo '```'
-          } > /tmp/oyen-diagnostics.md
+          } > /tmp/latest.md
 
-          rm -rf /tmp/oyen-diagnostics-repo
-          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/oyen-diagnostics-repo
-          cd /tmp/oyen-diagnostics-repo
+          rm -rf /tmp/diagnostics-repo
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/diagnostics-repo
+          cd /tmp/diagnostics-repo
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan diagnostics-work
           git rm -rf .
-          cp /tmp/oyen-diagnostics.md latest.md
+          cp /tmp/latest.md latest.md
           git add latest.md
           git commit -m "diagnostics: ${GITHUB_SHA::7}"
           git push --force origin HEAD:diagnostics
 
-      - name: Publish deployment status
+      - name: Publish final status
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -256,38 +227,23 @@ jobs:
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
           set -euo pipefail
-
           if [ "$DEPLOY_OUTCOME" = "success" ] && [ "$HEALTH_OUTCOME" = "success" ] && [ "$SMOKE_OUTCOME" = "success" ]; then
-            STATE="success"
-            DESCRIPTION="Oyen deployed and produced a valid MP4"
+            state="success"
+            description="Oyen deployed and produced a verified MP4"
           else
-            STATE="failure"
-            DESCRIPTION="Oyen deploy, health check, or MP4 render failed"
+            state="failure"
+            description="Deploy, health check, or MP4 render failed"
           fi
 
-          PAYLOAD=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$STATE" "$DESCRIPTION")
-
+          payload=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$state" "$description")
           curl --fail-with-body \
             --request POST \
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data "$PAYLOAD"
+            --data "$payload"
 
-      - name: Deployment summary
-        if: always()
-        env:
-          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
-          HEALTH_OUTCOME: ${{ steps.health.outcome }}
-          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
-        run: |
-          echo "### Oyen Hugging Face deployment" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Push outcome: \`${DEPLOY_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Runtime health: \`${HEALTH_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Real MP4 smoke render: \`${SMOKE_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Diagnostic branch: \`diagnostics/latest.md\`" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Fail workflow unless MP4 was produced
+      - name: Fail unless MP4 is verified
         if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success' || steps.smoke.outcome != 'success'
         run: exit 1

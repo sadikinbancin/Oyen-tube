@@ -1,0 +1,72 @@
+name: Deploy Oyen to Hugging Face
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "hf_space/**"
+      - ".github/workflows/deploy-huggingface.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oyen-huggingface-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Sync hf_space to lako123/Belajarh-ani
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Validate deployment files and secret
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HF_TOKEN" || { echo "HF_TOKEN secret is missing"; exit 1; }
+          test -f hf_space/app.py || { echo "hf_space/app.py is missing"; exit 1; }
+          test -f hf_space/README.md || { echo "hf_space/README.md is missing"; exit 1; }
+          test -f hf_space/requirements.txt || { echo "hf_space/requirements.txt is missing"; exit 1; }
+
+      - name: Deploy Gradio Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: lako123
+          HF_SPACE: lako123/Belajarh-ani
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git lfs install
+
+          rm -rf /tmp/oyen-hf-space
+          git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" /tmp/oyen-hf-space
+
+          rsync -av --delete --exclude=".git/" hf_space/ /tmp/oyen-hf-space/
+
+          cd /tmp/oyen-hf-space
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Hugging Face Space is already up to date."
+            exit 0
+          fi
+
+          git commit -m "Deploy Oyen from GitHub ${GITHUB_SHA::7}"
+          git push origin HEAD:main
+
+      - name: Deployment summary
+        run: |
+          echo "### Oyen Hugging Face deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source: \`hf_space/\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: \`lako123/Belajarh-ani\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Space: https://huggingface.co/spaces/lako123/Belajarh-ani" >> "$GITHUB_STEP_SUMMARY"

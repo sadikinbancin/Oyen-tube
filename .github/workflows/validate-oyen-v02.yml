@@ -1,0 +1,84 @@
+name: Validate Oyen V0.2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "hf_space/**"
+      - "tests/test_oyen_bridge.py"
+      - ".github/workflows/validate-oyen-v02.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: oyen-v02-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Mark validation pending
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data '{"state":"pending","context":"oyen-v02/validate","description":"Validating Blender worker package"}'
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Python and worker package
+        id: validation
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python -m py_compile hf_space/app.py hf_space/oyen_bridge.py tests/test_oyen_bridge.py
+          python -m unittest tests.test_oyen_bridge -v
+
+      - name: Publish validation status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
+        run: |
+          set -euo pipefail
+
+          if [ "$VALIDATION_OUTCOME" = "success" ]; then
+            STATE="success"
+            DESCRIPTION="Oyen V0.2 worker package is valid"
+          else
+            STATE="failure"
+            DESCRIPTION="Oyen V0.2 validation failed"
+          fi
+
+          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v02/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data "$PAYLOAD"
+
+      - name: Fail workflow when validation failed
+        if: steps.validation.outcome != 'success'
+        run: exit 1

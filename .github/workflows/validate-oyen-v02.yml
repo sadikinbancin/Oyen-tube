@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - agent/oyen-purba-v04-final
     paths:
       - "hf_space/**"
       - "tests/test_oyen_bridge.py"
@@ -16,7 +17,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: oyen-v04-validation
+  group: oyen-v04-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

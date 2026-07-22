@@ -83,9 +83,9 @@ jobs:
           compile(script, "oyen_blender_scene.py", "exec")
           required = [
               "Oyen_Purba_Rig",
-              "upper_arm.L",
-              "foot_ik.R",
-              "tail.05",
+              'bone(f"upper_arm.{side}"',
+              'bone(f"foot_ik.{side}"',
+              'name = f"tail.{index:02d}"',
               "Oyen_Arm_IK",
               "Oyen_Leg_IK",
               "OYEN_RIG_V1_SUCCESS",

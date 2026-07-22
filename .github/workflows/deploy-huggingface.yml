@@ -74,7 +74,7 @@ jobs:
             fi
           } 2>&1 | tee /tmp/oyen-deploy.log
 
-      - name: Wait for Oyen Purba render API
+      - name: Wait for Oyen Purba V0.4 render API
         id: health
         if: steps.deploy.outcome == 'success'
         continue-on-error: true
@@ -87,14 +87,16 @@ jobs:
                 --write-out "%{http_code}" \
                 "https://lako123-belajarh-ani.hf.space/config" || true)
 
-              if [ "$code" = "200" ] && grep -q 'render_mp4' /tmp/space-config.json; then
-                echo "Oyen Purba /render_mp4 API is ready."
+              if [ "$code" = "200" ] \
+                && grep -q 'render_mp4' /tmp/space-config.json \
+                && grep -q 'Oyen Purba Official' /tmp/space-config.json; then
+                echo "Oyen Purba V0.4 /render_mp4 API is ready."
                 exit 0
               fi
-              echo "Attempt ${attempt}/100: Space is building or starting (HTTP ${code})."
+              echo "Attempt ${attempt}/100: waiting for the V0.4 UI (HTTP ${code})."
               sleep 15
             done
-            echo "The Space did not become healthy."
+            echo "The Oyen Purba V0.4 Space did not become healthy."
             exit 1
           } 2>&1 | tee /tmp/oyen-health.log
 

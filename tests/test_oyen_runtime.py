@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 HF_SPACE = ROOT / "hf_space"
 if str(HF_SPACE) not in sys.path:
     sys.path.insert(0, str(HF_SPACE))
 
-from oyen_runtime import BlenderRuntimeError, _prepare_script, find_blender
+from oyen_runtime import BlenderRuntimeError, _prepare_script, find_blender  # noqa: E402
 
 
 SAMPLE_JOB = {
     "job_id": "test-job",
+    "project": {"prompt": "Oyen walks and waves"},
     "timeline": {
         "duration_seconds": 3,
         "fps": 12,
@@ -32,20 +32,24 @@ SAMPLE_JOB = {
         ],
     },
     "render": {
-        "engine": "BLENDER_EEVEE_NEXT",
+        "engine": "BLENDER_WORKBENCH",
         "width": 360,
         "height": 640,
+        "aspect_ratio": "9:16",
         "preview_resolution_percentage": 100,
     },
 }
 
 
 class OyenRuntimeTests(unittest.TestCase):
-    def test_prepare_script_uses_runtime_output_directory(self) -> None:
+    def test_prepare_script_contains_runtime_paths_and_rig_proof(self) -> None:
         script = _prepare_script(SAMPLE_JOB)
         self.assertIn("OYEN_OUTPUT_DIR", script)
         self.assertIn("preview_resolution_percentage", script)
-        self.assertIn("BLENDER_EEVEE", script)
+        self.assertIn("BLENDER_WORKBENCH", script)
+        self.assertIn("Oyen_Purba_Rig", script)
+        self.assertIn("OYEN_RIG_V1_SUCCESS", script)
+        self.assertIn("OYEN_RIG_BONES count=", script)
         self.assertIn("OYEN_WORKER_SUCCESS", script)
 
     def test_find_blender_accepts_explicit_executable(self) -> None:

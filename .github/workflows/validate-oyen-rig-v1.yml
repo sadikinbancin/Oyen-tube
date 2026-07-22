@@ -61,7 +61,7 @@ jobs:
               "Oyen_Purba_Rig",
               "upper_arm.L",
               "thigh.R",
-              "tail.05",
+              'name = f"tail.{index:02d}"',
               "Oyen_Arm_IK",
               "Oyen_Leg_IK",
               "OYEN_RIG_V1_SUCCESS",

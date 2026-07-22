@@ -1,14 +1,13 @@
-name: Validate Oyen Purba V0.4
+name: Validate Oyen Motion AI V0.5
 
 on:
   push:
     branches:
       - main
-      - agent/oyen-purba-v04-final
+      - agent/oyen-motion-ai-v05
     paths:
       - "hf_space/**"
-      - "tests/test_oyen_bridge.py"
-      - "tests/test_oyen_runtime.py"
+      - "tests/test_oyen_*.py"
       - ".github/workflows/validate-oyen-v02.yml"
   workflow_dispatch:
 
@@ -17,7 +16,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: oyen-v04-validation-${{ github.ref }}
+  group: oyen-v05-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,7 +35,7 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"oyen-v04/validate","description":"Validating Oyen Purba app and armature runtime"}'
+            --data '{"state":"pending","context":"oyen-v05/validate","description":"Validating Motion AI, forward axis and rig runtime"}'
 
       - uses: actions/checkout@v4
 
@@ -44,7 +43,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate app, rig generator and runtime
+      - name: Validate Motion AI app, planner, rig and runtime
         id: validation
         continue-on-error: true
         run: |
@@ -53,10 +52,12 @@ jobs:
             python -m py_compile \
               hf_space/app.py \
               hf_space/app_v04.py \
+              hf_space/oyen_motion_ai.py \
               hf_space/oyen_bridge.py \
               hf_space/oyen_rig_v1.py \
               hf_space/oyen_runtime.py \
               tests/test_oyen_bridge.py \
+              tests/test_oyen_motion_ai.py \
               tests/test_oyen_runtime.py
             python -m unittest discover -s tests -p 'test_oyen_*.py' -v
             grep -qx 'blender' hf_space/packages.txt
@@ -67,11 +68,22 @@ jobs:
           import sys
           sys.path.insert(0, "hf_space")
           from oyen_bridge import build_blender_script
+          from oyen_motion_ai import build_motion_plan
+
+          plan, provider, note = build_motion_plan(
+              "Oyen berlari mengejar ayam, berhenti, lalu menoleh ke kamera dengan kesal.",
+              5,
+          )
+          assert plan["coordinate_system"]["character_forward"] == "-Y"
+          assert plan["clips"][0]["type"] == "run"
+          assert plan["clips"][0]["direction"] == "forward"
+          assert "wave" not in [clip["type"] for clip in plan["clips"]]
 
           job = {
-              "job_id": "v04-ci",
-              "project": {"prompt": "Oyen walks and waves"},
-              "timeline": {"fps": 12, "total_frames": 36, "duration_seconds": 3, "scenes": []},
+              "job_id": "v05-ci",
+              "project": {"prompt": "Oyen runs forward"},
+              "motion_plan": plan,
+              "timeline": {"fps": 12, "total_frames": 60, "duration_seconds": 5},
               "render": {
                   "width": 360,
                   "height": 640,
@@ -88,15 +100,26 @@ jobs:
               'name = f"tail.{index:02d}"',
               "Oyen_Arm_IK",
               "Oyen_Leg_IK",
+              '"forward": (0.0, -1.0)',
+              "direction_vector",
+              "key_locomotion",
+              "key_jump",
+              "key_angry",
+              "Oyen_AI_Motion_Plan.json",
+              "OYEN_MOTION_PLAN_EMBEDDED",
+              "OYEN_MOTION_AI_SUCCESS",
               "OYEN_RIG_V1_SUCCESS",
               "OYEN_RIG_BONES count=",
           ]
           missing = [item for item in required if item not in script]
           if missing:
-              raise SystemExit(f"Missing Oyen Rig V0.4 elements: {missing}")
-          print(f"OYEN_V04_SCRIPT_OK bytes={len(script)}")
+              raise SystemExit(f"Missing Oyen Motion AI V0.5 elements: {missing}")
+          print(
+              f"OYEN_V05_SCRIPT_OK bytes={len(script)} provider={provider} "
+              f"clips={[clip['type'] for clip in plan['clips']]} note={note}"
+          )
           PY
-          } 2>&1 | tee /tmp/oyen-v04-validation.log
+          } 2>&1 | tee /tmp/oyen-v05-validation.log
 
       - name: Publish validation diagnostics
         if: always()
@@ -105,28 +128,28 @@ jobs:
           VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
         run: |
           {
-            echo "# Oyen Purba V0.4 validation diagnostics"
+            echo "# Oyen Motion AI V0.5 validation diagnostics"
             echo
             echo "- Source commit: \`${GITHUB_SHA}\`"
             echo "- Outcome: \`${VALIDATION_OUTCOME}\`"
             echo
             echo '```text'
-            tail -c 18000 /tmp/oyen-v04-validation.log 2>/dev/null || echo "No validation log."
+            tail -c 20000 /tmp/oyen-v05-validation.log 2>/dev/null || echo "No validation log."
             echo
             echo '```'
-          } > /tmp/latest-v04.md
+          } > /tmp/latest-v05.md
 
-          rm -rf /tmp/v04-diagnostics
-          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/v04-diagnostics
-          cd /tmp/v04-diagnostics
+          rm -rf /tmp/v05-diagnostics
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/v05-diagnostics
+          cd /tmp/v05-diagnostics
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan diagnostics-work
           git rm -rf .
-          cp /tmp/latest-v04.md latest.md
+          cp /tmp/latest-v05.md latest.md
           git add latest.md
-          git commit -m "v04 diagnostics: ${GITHUB_SHA::7}"
-          git push --force origin HEAD:v04-diagnostics
+          git commit -m "v05 diagnostics: ${GITHUB_SHA::7}"
+          git push --force origin HEAD:v05-diagnostics
 
       - name: Publish validation status
         if: always()
@@ -136,12 +159,12 @@ jobs:
         run: |
           if [ "$VALIDATION_OUTCOME" = "success" ]; then
             STATE="success"
-            DESCRIPTION="Oyen Purba V0.4 app and armature runtime are valid"
+            DESCRIPTION="Oyen Motion AI V0.5 planner and rig are valid"
           else
             STATE="failure"
-            DESCRIPTION="Oyen Purba V0.4 validation failed"
+            DESCRIPTION="Oyen Motion AI V0.5 validation failed"
           fi
-          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v04/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
+          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v05/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
           curl --fail-with-body \
             --request POST \
             --header "Accept: application/vnd.github+json" \

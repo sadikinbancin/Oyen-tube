@@ -13,7 +13,7 @@ import spaces
 
 from oyen_runtime import BlenderRuntimeError, render_job
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 OUTPUT_DIR = Path(tempfile.gettempdir()) / "oyen_animation_jobs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -115,7 +115,7 @@ def _create_job(
             "scenes": _build_scenes(prompt, int(duration), mode),
         },
         "render": {
-            "engine": "BLENDER_EEVEE_NEXT",
+            "engine": "BLENDER_WORKBENCH",
             "width": width,
             "height": height,
             "aspect_ratio": aspect_ratio,
@@ -124,7 +124,7 @@ def _create_job(
             "preview_resolution_percentage": 100,
         },
         "worker": {
-            "mode": "huggingface_blender_headless",
+            "mode": "huggingface_blender_headless_cpu",
             "expected_outputs": [
                 "oyen_preview.blend",
                 "oyen_preview.mp4",
@@ -133,38 +133,27 @@ def _create_job(
         "pipeline": [
             "director_plan",
             "procedural_oyen_placeholder",
-            "camera_and_lighting",
-            "blender_headless_render",
+            "camera_animation",
+            "blender_workbench_headless_render",
             "mp4_validation",
             "browser_preview_and_download",
         ],
         "status": "ready_to_render",
         "notes": [
-            "V0.3 renders the MP4 directly inside the Hugging Face Space.",
-            "Preview duration is intentionally limited for the free runtime.",
+            "V0.3.1 renders MP4 directly inside the Hugging Face Space.",
+            "Blender runs on CPU because the preview does not use PyTorch or CUDA.",
+            "ZeroGPU remains registered so the ZeroGPU Space can start normally.",
             "The current Oyen character is procedural until the final rig is connected.",
         ],
     }
 
 
-def _gpu_duration(
-    prompt: str,
-    mode: str,
-    style: str,
-    duration: int,
-    aspect_ratio: str,
-    fps: int,
-    resolution: str,
-    include_audio: bool,
-) -> int:
-    del prompt, mode, style, aspect_ratio, include_audio
-    base = 70 + int(duration) * int(fps) // 2
-    if resolution == "480p":
-        base += 25
-    return min(180, max(90, base))
+@spaces.GPU(duration=1)
+def _zerogpu_registration() -> str:
+    """Register one ZeroGPU function without wasting GPU time on Blender CPU rendering."""
+    return "ZeroGPU registered"
 
 
-@spaces.GPU(duration=_gpu_duration)
 def create_animation_video(
     prompt: str,
     mode: str,
@@ -204,7 +193,7 @@ def create_animation_video(
     json_path.write_text(json_text, encoding="utf-8")
 
     try:
-        result = render_job(job, OUTPUT_DIR, timeout=175)
+        result = render_job(job, OUTPUT_DIR, timeout=240)
         video_path = str(result["video"])
         blend_path = str(result["blend"]) if result.get("blend") else None
         log_path = str(result["log"])
@@ -213,7 +202,7 @@ def create_animation_video(
         status = (
             f"✅ **Video MP4 selesai** — `{job['job_id']}`  \n"
             f"{duration} detik • {fps} FPS • {job['render']['width']}×{job['render']['height']}  \n"
-            f"Render {elapsed:.1f} detik • MP4 {size_mb:.2f} MB"
+            f"Render CPU Blender {elapsed:.1f} detik • MP4 {size_mb:.2f} MB"
         )
         return (
             status,
@@ -252,8 +241,8 @@ with gr.Blocks(title="Oyen AI Animation Studio") as demo:
 # 🐈 Oyen AI Animation Studio
 **Prompt → Blender headless → video MP4 langsung**
 
-V0.3 merender preview Blender di Hugging Face. Untuk menjaga runtime gratis tetap stabil,
-preview dibatasi **3–8 detik**, **12–15 FPS**, dan maksimal **480p**.
+V0.3.1 merender preview dengan Blender Workbench di CPU Hugging Face.
+Preview dibatasi **3–8 detik**, **12–15 FPS**, dan maksimal **480p** agar runtime gratis stabil.
 """
     )
 

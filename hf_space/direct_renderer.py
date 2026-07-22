@@ -34,7 +34,9 @@ def make_preview_job(job: dict[str, Any]) -> dict[str, Any]:
         original_scenes = [
             {
                 "scene": 1,
-                "action": preview.get("project", {}).get("prompt", "Oyen bergerak di dalam adegan."),
+                "action": preview.get("project", {}).get(
+                    "prompt", "Oyen bergerak di dalam adegan."
+                ),
                 "camera": "wide establishing shot",
                 "animation_note": "Procedural preview animation.",
             }
@@ -44,7 +46,9 @@ def make_preview_job(job: dict[str, Any]) -> dict[str, Any]:
         source = copy.deepcopy(original_scenes[index % len(original_scenes)])
         source["scene"] = index + 1
         source["start_seconds"] = round(index * scene_length, 3)
-        source["end_seconds"] = round(min(preview_duration, (index + 1) * scene_length), 3)
+        source["end_seconds"] = round(
+            min(preview_duration, (index + 1) * scene_length), 3
+        )
         preview_scenes.append(source)
 
     timeline["duration_seconds"] = preview_duration
@@ -60,6 +64,44 @@ def make_preview_job(job: dict[str, Any]) -> dict[str, Any]:
         "Direct Space render is capped at 15 seconds, 12 FPS, and 35% resolution for free-tier reliability."
     )
     return preview
+
+
+def _runtime_script(job: dict[str, Any]) -> str:
+    """Patch the standalone worker script for Debian Blender versions used by Spaces."""
+    script = build_blender_script(job)
+    script = script.replace(
+        'OUTPUT_ROOT = os.path.abspath("//oyen_output")',
+        'OUTPUT_ROOT = os.path.abspath(os.environ.get("OYEN_OUTPUT_DIR", os.path.join(os.getcwd(), "oyen_output")))',
+    )
+    script = script.replace(
+        '    scene.render.resolution_percentage = 50',
+        '    scene.render.resolution_percentage = int(render.get("preview_resolution_percentage", 50))',
+    )
+    old_engine_block = '''    preferred_engine = str(render.get("engine", "BLENDER_EEVEE_NEXT"))
+    available_engines = {"BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH", "CYCLES"}
+    scene.render.engine = preferred_engine if preferred_engine in available_engines else "BLENDER_EEVEE_NEXT"'''
+    new_engine_block = '''    preferred_engine = str(render.get("engine", "BLENDER_EEVEE_NEXT"))
+    engine_candidates = [preferred_engine, "BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "BLENDER_WORKBENCH"]
+    selected_engine = None
+    for candidate in engine_candidates:
+        if candidate in (None, selected_engine):
+            continue
+        try:
+            scene.render.engine = candidate
+            selected_engine = candidate
+            break
+        except (TypeError, ValueError):
+            continue
+    if selected_engine is None:
+        raise RuntimeError("No compatible Blender render engine found")
+    if hasattr(scene, "eevee"):
+        try:
+            scene.eevee.taa_render_samples = 16
+        except Exception:
+            pass'''
+    if old_engine_block not in script:
+        raise BlenderRenderError("Template Blender berubah dan patch runtime tidak dapat diterapkan.")
+    return script.replace(old_engine_block, new_engine_block)
 
 
 def _resolve_blender() -> str:
@@ -89,7 +131,7 @@ def render_mp4(
 
     script_path = root / "oyen_blender_scene.py"
     log_path = root / "blender_render.log"
-    script_path.write_text(build_blender_script(preview_job), encoding="utf-8")
+    script_path.write_text(_runtime_script(preview_job), encoding="utf-8")
 
     env = os.environ.copy()
     env["OYEN_OUTPUT_DIR"] = str(render_root.resolve())

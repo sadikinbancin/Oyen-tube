@@ -11,7 +11,9 @@ from typing import Any
 import gradio as gr
 import spaces
 
-APP_VERSION = "0.1.1"
+from oyen_bridge import build_blender_script, write_worker_package
+
+APP_VERSION = "0.2.0"
 OUTPUT_DIR = Path(tempfile.gettempdir()) / "oyen_animation_jobs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,8 +71,7 @@ def _build_scenes(prompt: str, duration: int, mode: str) -> list[dict[str, Any]]
     return scenes
 
 
-@spaces.GPU
-def create_animation_job(
+def _create_job(
     prompt: str,
     mode: str,
     style: str,
@@ -79,11 +80,8 @@ def create_animation_job(
     fps: int,
     resolution: str,
     include_audio: bool,
-) -> tuple[str, str, str | None]:
-    clean_prompt = (prompt or "").strip()
-    if len(clean_prompt) < 8:
-        return "⚠️ Tulis prompt animasi yang lebih jelas.", "{}", None
-
+) -> dict[str, Any]:
+    clean_prompt = prompt.strip()
     width, height = {
         ("9:16", "720p"): (720, 1280),
         ("9:16", "1080p"): (1080, 1920),
@@ -97,8 +95,8 @@ def create_animation_job(
     engine = "BLENDER_EEVEE_NEXT" if mode == "3D Blender" else "BLENDER_WORKBENCH"
     job_id = f"oyen-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
-    job: dict[str, Any] = {
-        "schema_version": "oyen.animation-job.v1",
+    return {
+        "schema_version": "oyen.animation-job.v2",
         "app_version": APP_VERSION,
         "job_id": job_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -123,43 +121,102 @@ def create_animation_job(
             "aspect_ratio": aspect_ratio,
             "output_format": "FFMPEG_MPEG4",
             "audio_enabled": bool(include_audio),
+            "preview_resolution_percentage": 50,
+        },
+        "worker": {
+            "mode": "blender_headless",
+            "command": (
+                "blender --background --factory-startup --enable-autoexec "
+                "--python oyen_blender_scene.py"
+            ),
+            "expected_outputs": [
+                "oyen_output/oyen_preview.blend",
+                "oyen_output/oyen_preview.mp4",
+            ],
         },
         "pipeline": [
             "director_plan",
-            "character_and_asset_setup",
-            "rig_or_grease_pencil_setup",
-            "animation",
+            "generate_standalone_blender_script",
+            "procedural_oyen_placeholder",
             "camera_and_lighting",
-            "render",
-            "video_edit_and_export",
+            "headless_blender_render",
+            "video_export",
         ],
-        "status": "planned",
+        "status": "worker_package_ready",
         "notes": [
-            "V0.1 creates a production-ready JSON plan.",
-            "Blender execution will be connected in the next development stage.",
-            "The generation function is ZeroGPU-compatible through @spaces.GPU.",
+            "V0.2 generates JSON, a standalone Blender script, and a worker ZIP.",
+            "The worker follows the headless Blender execution pattern used by blender-mcp.",
+            "ZeroGPU prepares files; Blender rendering runs on a local or remote Blender worker.",
+            "The current character is a procedural placeholder until the final rigged Oyen model is connected.",
         ],
     }
 
-    json_text = json.dumps(job, ensure_ascii=False, indent=2)
-    output_path = OUTPUT_DIR / f"{job_id}.json"
-    output_path.write_text(json_text, encoding="utf-8")
 
-    status = (
-        f"✅ **Rencana berhasil dibuat** — `{job_id}`  \n"
-        f"{len(job['timeline']['scenes'])} adegan • {duration} detik • "
-        f"{fps} FPS • {width}×{height}"
-    )
-    return status, json_text, str(output_path)
+@spaces.GPU
+def create_animation_package(
+    prompt: str,
+    mode: str,
+    style: str,
+    duration: int,
+    aspect_ratio: str,
+    fps: int,
+    resolution: str,
+    include_audio: bool,
+) -> tuple[str, str, str, str | None, str | None, str | None]:
+    clean_prompt = (prompt or "").strip()
+    if len(clean_prompt) < 8:
+        return (
+            "⚠️ Tulis prompt animasi yang lebih jelas.",
+            "{}",
+            "# Script Blender belum dibuat.",
+            None,
+            None,
+            None,
+        )
+
+    try:
+        job = _create_job(
+            clean_prompt,
+            mode,
+            style,
+            int(duration),
+            aspect_ratio,
+            int(fps),
+            resolution,
+            include_audio,
+        )
+        files = write_worker_package(job, OUTPUT_DIR)
+        json_text = json.dumps(job, ensure_ascii=False, indent=2)
+        script_text = build_blender_script(job)
+
+        render = job["render"]
+        status = (
+            f"✅ **Paket Blender siap** — `{job['job_id']}`  \n"
+            f"{len(job['timeline']['scenes'])} adegan • {duration} detik • "
+            f"{fps} FPS • {render['width']}×{render['height']}  \n"
+            "Unduh **Worker ZIP**, ekstrak di komputer yang memiliki Blender, lalu jalankan "
+            "`run_blender.bat` atau `run_blender.sh`."
+        )
+        return status, json_text, script_text, files["json"], files["script"], files["zip"]
+    except Exception as exc:
+        return (
+            f"❌ Gagal membuat paket worker: `{type(exc).__name__}: {exc}`",
+            "{}",
+            "# Terjadi kesalahan saat membuat script Blender.",
+            None,
+            None,
+            None,
+        )
 
 
 with gr.Blocks(title="Oyen AI Animation Studio") as demo:
     gr.Markdown(
         """
 # 🐈 Oyen AI Animation Studio
-**Prompt → storyboard → animation job JSON → Blender pipeline**
+**Prompt → storyboard → JSON → script Blender → worker ZIP → MP4**
 
-V0.1 membuat rancangan produksi animasi 2D atau 3D yang nanti dieksekusi oleh mesin Blender Oyen.
+V0.2 menghasilkan paket worker Blender headless. Hugging Face menyiapkan instruksi dan
+file; komputer atau server yang memiliki Blender menjalankan render.
 """
     )
 
@@ -169,7 +226,7 @@ V0.1 membuat rancangan produksi animasi 2D atau 3D yang nanti dieksekusi oleh me
                 label="Ceritakan animasi yang ingin dibuat",
                 placeholder=(
                     "Contoh: Oyen berjalan ke dapur pada malam hari, melihat ikan besar "
-                    "di atas meja, lalu tersenyum licik dan melompat mengambilnya."
+                    "di atas meja, lalu terkejut ketika piring jatuh."
                 ),
                 lines=7,
             )
@@ -197,12 +254,20 @@ V0.1 membuat rancangan produksi animasi 2D atau 3D yang nanti dieksekusi oleh me
                 )
 
             audio_input = gr.Checkbox(value=True, label="Siapkan jalur audio/dialog")
-            generate_button = gr.Button("🚀 Buat Rencana Animasi", variant="primary")
+            generate_button = gr.Button("🚀 Buat Paket Blender", variant="primary")
 
         with gr.Column(scale=2):
-            status_output = gr.Markdown("Belum ada job yang dibuat.")
-            json_output = gr.Code(label="animation_job.json", language="json", lines=22)
-            file_output = gr.File(label="Download JSON")
+            status_output = gr.Markdown("Belum ada paket worker yang dibuat.")
+            with gr.Tabs():
+                with gr.Tab("animation_job.json"):
+                    json_output = gr.Code(language="json", lines=22)
+                with gr.Tab("oyen_blender_scene.py"):
+                    script_output = gr.Code(language="python", lines=22)
+
+            with gr.Row():
+                json_file = gr.File(label="Download JSON")
+                script_file = gr.File(label="Download Script Blender")
+            worker_zip = gr.File(label="⭐ Download Worker ZIP")
 
     gr.Examples(
         examples=[
@@ -252,13 +317,21 @@ V0.1 membuat rancangan produksi animasi 2D atau 3D yang nanti dieksekusi oleh me
 
     gr.Markdown(
         """
-### Pipeline V0.1
-GitHub menyimpan kode utama. Hugging Face menjalankan UI Gradio. ZeroGPU menangani fungsi AI yang dihias dengan `@spaces.GPU`. Render Blender tetap disiapkan sebagai worker terpisah.
+### Cara kerja V0.2
+
+1. Buat paket dari prompt.
+2. Unduh **Worker ZIP**.
+3. Ekstrak ZIP pada komputer/server yang sudah dipasang Blender.
+4. Jalankan `run_blender.bat` (Windows) atau `run_blender.sh` (Linux/macOS).
+5. Ambil hasil dari folder `oyen_output/`.
+
+Karakter saat ini masih placeholder prosedural untuk membuktikan jalur
+**JSON → Blender headless → `.blend` + MP4**. Rig Oyen final menjadi fase berikutnya.
 """
     )
 
     generate_button.click(
-        fn=create_animation_job,
+        fn=create_animation_package,
         inputs=[
             prompt_input,
             mode_input,
@@ -269,8 +342,16 @@ GitHub menyimpan kode utama. Hugging Face menjalankan UI Gradio. ZeroGPU menanga
             resolution_input,
             audio_input,
         ],
-        outputs=[status_output, json_output, file_output],
+        outputs=[
+            status_output,
+            json_output,
+            script_output,
+            json_file,
+            script_file,
+            worker_zip,
+        ],
     )
 
+
 if __name__ == "__main__":
-    demo.queue(default_concurrency_limit=4).launch()
+    demo.queue(default_concurrency_limit=2).launch()

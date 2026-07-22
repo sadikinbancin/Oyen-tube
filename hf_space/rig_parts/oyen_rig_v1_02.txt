@@ -1,0 +1,143 @@
+        major_segments=32,
+        minor_segments=12,
+        location=location,
+        rotation=rotation,
+    )
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.data.materials.append(material)
+    smooth_object(obj)
+    if parent:
+        keep_world_parent(obj, parent, bone)
+    return obj
+
+
+def add_cube(name, location, scale, material, rotation=(0.0, 0.0, 0.0), parent=None, bone=None, bevel=0.05):
+    bpy.ops.mesh.primitive_cube_add(location=location, rotation=rotation)
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.scale = scale
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.data.materials.append(material)
+    if bevel:
+        modifier = obj.modifiers.new(name="Oyen_Bevel", type="BEVEL")
+        modifier.width = bevel
+        modifier.segments = 3
+    smooth_object(obj)
+    if parent:
+        keep_world_parent(obj, parent, bone)
+    return obj
+
+
+def create_armature():
+    armature_data = bpy.data.armatures.new("Oyen_Purba_Rig")
+    armature = bpy.data.objects.new("Oyen_Purba_Rig", armature_data)
+    bpy.context.collection.objects.link(armature)
+    armature.show_in_front = True
+    armature.data.display_type = "OCTAHEDRAL"
+
+    bpy.context.view_layer.objects.active = armature
+    armature.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    def bone(name, head, tail, parent=None, connected=False, deform=True):
+        edit_bone = armature.data.edit_bones.new(name)
+        edit_bone.head = head
+        edit_bone.tail = tail
+        edit_bone.use_deform = deform
+        if parent:
+            edit_bone.parent = armature.data.edit_bones[parent]
+            edit_bone.use_connect = connected
+        return edit_bone
+
+    bone("root", (0, 0, 0.0), (0, 0, 0.35), deform=False)
+    bone("pelvis", (0, 0, 0.35), (0, 0, 0.9), "root")
+    bone("spine", (0, 0, 0.9), (0, 0, 1.35), "pelvis", True)
+    bone("chest", (0, 0, 1.35), (0, 0, 1.62), "spine", True)
+    bone("neck", (0, 0, 1.62), (0, 0, 1.82), "chest", True)
+    bone("head", (0, 0, 1.82), (0, 0, 2.28), "neck", True)
+    bone("jaw", (0, -0.04, 1.86), (0, -0.34, 1.76), "head")
+    bone("ear.L", (-0.23, 0, 2.18), (-0.34, 0, 2.55), "head")
+    bone("ear.R", (0.23, 0, 2.18), (0.34, 0, 2.55), "head")
+
+    for side, sign in (("L", -1), ("R", 1)):
+        bone(f"upper_arm.{side}", (0.28 * sign, 0, 1.5), (0.58 * sign, 0, 1.25), "chest")
+        bone(f"forearm.{side}", (0.58 * sign, 0, 1.25), (0.69 * sign, -0.02, 0.97), f"upper_arm.{side}", True)
+        bone(f"hand.{side}", (0.69 * sign, -0.02, 0.97), (0.70 * sign, -0.09, 0.76), f"forearm.{side}", True)
+        bone(f"thigh.{side}", (0.22 * sign, 0, 0.72), (0.28 * sign, 0, 0.43), "pelvis")
+        bone(f"shin.{side}", (0.28 * sign, 0, 0.43), (0.28 * sign, 0, 0.16), f"thigh.{side}", True)
+        bone(f"foot.{side}", (0.28 * sign, 0, 0.16), (0.28 * sign, -0.27, 0.08), f"shin.{side}", True)
+        bone(f"hand_ik.{side}", (0.70 * sign, -0.1, 0.75), (0.70 * sign, -0.1, 0.95), "root", deform=False)
+        bone(f"elbow_pole.{side}", (0.86 * sign, 0.35, 1.12), (0.86 * sign, 0.35, 1.32), "root", deform=False)
+        bone(f"foot_ik.{side}", (0.28 * sign, -0.27, 0.08), (0.28 * sign, -0.27, 0.3), "root", deform=False)
+        bone(f"knee_pole.{side}", (0.28 * sign, -0.55, 0.44), (0.28 * sign, -0.55, 0.64), "root", deform=False)
+
+    tail_parent = "pelvis"
+    tail_points = [
+        ((0.0, 0.12, 0.75), (0.35, 0.18, 0.84)),
+        ((0.35, 0.18, 0.84), (0.68, 0.20, 1.00)),
+        ((0.68, 0.20, 1.00), (0.96, 0.18, 1.18)),
+        ((0.96, 0.18, 1.18), (1.18, 0.12, 1.32)),
+        ((1.18, 0.12, 1.32), (1.38, 0.04, 1.42)),
+    ]
+    for index, (head, tail) in enumerate(tail_points, start=1):
+        name = f"tail.{index:02d}"
+        bone(name, head, tail, tail_parent, connected=index > 1)
+        tail_parent = name
+
+    bpy.ops.object.mode_set(mode="POSE")
+    for side in ("L", "R"):
+        arm_ik = armature.pose.bones[f"forearm.{side}"].constraints.new("IK")
+        arm_ik.name = f"Oyen_Arm_IK.{side}"
+        arm_ik.target = armature
+        arm_ik.subtarget = f"hand_ik.{side}"
+        arm_ik.pole_target = armature
+        arm_ik.pole_subtarget = f"elbow_pole.{side}"
+        arm_ik.chain_count = 2
+        arm_ik.influence = 0.0
+
+        leg_ik = armature.pose.bones[f"shin.{side}"].constraints.new("IK")
+        leg_ik.name = f"Oyen_Leg_IK.{side}"
+        leg_ik.target = armature
+        leg_ik.subtarget = f"foot_ik.{side}"
+        leg_ik.pole_target = armature
+        leg_ik.pole_subtarget = f"knee_pole.{side}"
+        leg_ik.chain_count = 2
+        leg_ik.influence = 0.0
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    return armature
+
+
+def create_character(armature):
+    orange = make_material("Blaze Orange", BLAZE_ORANGE, 0.64)
+    cream = make_material("Sun Cream", SUN_CREAM, 0.68)
+    cocoa = make_material("Deep Cocoa", DEEP_COCOA, 0.52)
+    amber = make_material("Amber Eyes", AMBER_EYES, 0.35)
+    pink = make_material("Nose Pink", NOSE_PINK, 0.48)
+    white = make_material("Eye White", WHITE, 0.4)
+
+    add_uv_sphere("Oyen_Torso", (0, 0, 1.12), (0.62, 0.48, 0.70), orange, armature, "spine")
+    add_uv_sphere("Oyen_Belly", (0, -0.43, 1.08), (0.38, 0.08, 0.46), cream, armature, "spine")
+    add_uv_sphere("Oyen_Head", (0, -0.02, 1.98), (0.56, 0.48, 0.52), orange, armature, "head")
+    add_uv_sphere("Oyen_Cheek.L", (-0.16, -0.47, 1.82), (0.22, 0.09, 0.16), cream, armature, "head")
+    add_uv_sphere("Oyen_Cheek.R", (0.16, -0.47, 1.82), (0.22, 0.09, 0.16), cream, armature, "head")
+    add_uv_sphere("Oyen_Chin", (0, -0.43, 1.70), (0.24, 0.08, 0.12), cream, armature, "jaw")
+    add_uv_sphere("Oyen_Nose", (0, -0.56, 1.86), (0.075, 0.045, 0.055), pink, armature, "head")
+
+    for side, sign in (("L", -1), ("R", 1)):
+        add_cone(
+            f"Oyen_Ear.{side}",
+            (0.29 * sign, -0.01, 2.38),
+            (0.19, 0.15, 0.34),
+            orange,
+            rotation=(0, math.radians(-9 * sign), 0),
+            parent=armature,
+            bone=f"ear.{side}",
+        )
+        add_cone(
+            f"Oyen_EarInner.{side}",
+            (0.29 * sign, -0.13, 2.36),
+            (0.10, 0.035, 0.22),
+            cream,
+            rotation=(0, math.radians(-9 * sign), 0),

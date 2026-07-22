@@ -1,142 +1,220 @@
-        for index in range(1, 6):
-            tail_phase = phase - index * 0.42
-            keyframe_pose_bone(
-                pose[f"tail.{index:02d}"],
-                frame,
-                rotation=(
-                    math.radians(2.0) * math.sin(tail_phase * 0.8),
-                    math.radians(7.0) * math.sin(tail_phase * 0.7),
-                    math.radians(13.0) * math.sin(tail_phase),
-                ),
-            )
-
-    middle = max(2, total // 2)
-    wave_frames = [middle - max(2, fps // 3), middle, middle + max(2, fps // 3)]
-    for index, frame in enumerate(wave_frames):
-        if 1 <= frame <= total:
-            keyframe_pose_bone(pose["upper_arm.R"], frame, rotation=(math.radians(-45), math.radians(-15), math.radians(50)))
-            keyframe_pose_bone(pose["forearm.R"], frame, rotation=(math.radians(-75), 0.0, math.radians((-18, 18, -18)[index])))
-            keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(-2), 0.0, math.radians(-10)))
-
-    set_interpolation(armature)
-    scene.frame_set(1)
-
-
-def add_environment():
-    floor_material = make_material("Studio Floor", (0.16, 0.19, 0.24, 1.0), 0.82)
-    backdrop_material = make_material("Studio Backdrop", (0.72, 0.63, 0.48, 1.0), 0.9)
-    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, -0.03))
-    floor = bpy.context.active_object
-    floor.name = "Oyen_Studio_Floor"
-    floor.data.materials.append(floor_material)
-
-    bpy.ops.mesh.primitive_plane_add(size=24, location=(0, 3.2, 4.0), rotation=(math.radians(90), 0, 0))
-    backdrop = bpy.context.active_object
-    backdrop.name = "Oyen_Studio_Backdrop"
-    backdrop.data.materials.append(backdrop_material)
-
-    bpy.ops.object.light_add(type="AREA", location=(-3.5, -4.5, 6.2))
-    key = bpy.context.active_object
-    key.data.energy = 1050
-    key.data.size = 5.0
-    key.rotation_euler = (math.radians(25), 0, math.radians(-30))
-
-    bpy.ops.object.light_add(type="AREA", location=(4.0, -1.5, 4.0))
-    fill = bpy.context.active_object
-    fill.data.energy = 650
-    fill.data.size = 4.0
-    fill.rotation_euler = (math.radians(60), 0, math.radians(120))
-
-    bpy.ops.object.light_add(type="AREA", location=(0.0, 3.0, 5.5))
-    rim = bpy.context.active_object
-    rim.data.energy = 800
-    rim.data.size = 3.0
-    rim.rotation_euler = (math.radians(-30), 0, math.radians(180))
+def key_jump(pose, start_frame, end_frame, start_pos, end_pos, yaw, intensity):
+    span = max(1, end_frame - start_frame)
+    frames = [
+        start_frame,
+        start_frame + int(span * 0.16),
+        start_frame + int(span * 0.34),
+        start_frame + int(span * 0.55),
+        start_frame + int(span * 0.78),
+        end_frame,
+    ]
+    frames = sorted(set(max(start_frame, min(end_frame, frame)) for frame in frames))
+    for frame in frames:
+        amount = (frame - start_frame) / max(1, end_frame - start_frame)
+        base_position = lerp_vector(start_pos, end_pos, amount)
+        jump_height = (0.72 * intensity) * 4.0 * amount * (1.0 - amount)
+        crouch = max(0.0, 1.0 - abs(amount - 0.12) / 0.12)
+        landing = max(0.0, 1.0 - abs(amount - 0.82) / 0.12)
+        compression = max(crouch, landing)
+        keyframe_pose_bone(
+            pose["root"],
+            frame,
+            location=(base_position.x, base_position.y, base_position.z + jump_height - 0.035 * compression),
+            rotation=(0.0, 0.0, yaw),
+        )
+        keyframe_pose_bone(
+            pose["pelvis"],
+            frame,
+            rotation=(math.radians(-8.0 * compression), 0.0, 0.0),
+            scale=(1.0 + 0.04 * compression, 1.0 + 0.04 * compression, 1.0 - 0.08 * compression),
+        )
+        keyframe_pose_bone(pose["spine"], frame, rotation=(math.radians(7.0 * (1.0 - compression)), 0.0, 0.0))
+        keyframe_pose_bone(pose["chest"], frame, rotation=(math.radians(5.0), 0.0, 0.0))
+        keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(-4.0), 0.0, 0.0))
+        leg_tuck = math.radians(44.0 * math.sin(math.pi * amount))
+        keyframe_pose_bone(pose["thigh.L"], frame, rotation=(leg_tuck, 0.0, math.radians(-3.0)))
+        keyframe_pose_bone(pose["thigh.R"], frame, rotation=(leg_tuck, 0.0, math.radians(3.0)))
+        keyframe_pose_bone(pose["shin.L"], frame, rotation=(math.radians(40.0) * math.sin(math.pi * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["shin.R"], frame, rotation=(math.radians(40.0) * math.sin(math.pi * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["upper_arm.L"], frame, rotation=(math.radians(-25.0) * math.sin(math.pi * amount), 0.0, math.radians(-12.0)))
+        keyframe_pose_bone(pose["upper_arm.R"], frame, rotation=(math.radians(-25.0) * math.sin(math.pi * amount), 0.0, math.radians(12.0)))
+        key_tail(pose, frame, amount * math.tau, amplitude=1.05, lift=1.15)
 
 
-def point_camera(camera, target):
-    direction = Vector(target) - camera.location
-    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+def key_turn(pose, start_frame, end_frame, position, start_yaw, end_yaw, fps, intensity):
+    step = max(1, fps // 5)
+    frames = list(range(start_frame, end_frame + 1, step))
+    if frames[-1] != end_frame:
+        frames.append(end_frame)
+    for frame in frames:
+        amount = (frame - start_frame) / max(1, end_frame - start_frame)
+        eased = amount * amount * (3.0 - 2.0 * amount)
+        yaw = start_yaw + (end_yaw - start_yaw) * eased
+        anticipation = math.sin(amount * math.pi)
+        keyframe_pose_bone(
+            pose["root"],
+            frame,
+            location=tuple(position),
+            rotation=(0.0, 0.0, yaw),
+        )
+        keyframe_pose_bone(pose["pelvis"], frame, rotation=(0.0, 0.0, math.radians(8.0 * intensity) * anticipation))
+        keyframe_pose_bone(pose["chest"], frame, rotation=(0.0, 0.0, -math.radians(7.0 * intensity) * anticipation))
+        keyframe_pose_bone(pose["head"], frame, rotation=(0.0, 0.0, -math.radians(11.0 * intensity) * anticipation))
+        key_tail(pose, frame, amount * math.tau, amplitude=0.8, lift=0.9)
 
 
-def create_camera():
-    aspect = str(JOB["render"].get("aspect_ratio", "9:16"))
-    if aspect == "9:16":
-        location = (4.8, -8.6, 3.2)
-        lens = 58
-    elif aspect == "1:1":
-        location = (4.6, -8.0, 3.1)
-        lens = 54
-    else:
-        location = (5.7, -9.0, 3.1)
-        lens = 52
-    bpy.ops.object.camera_add(location=location)
-    camera = bpy.context.active_object
-    camera.name = "Oyen_Camera"
-    camera.data.lens = lens
-    bpy.context.scene.camera = camera
-    point_camera(camera, (0.0, 0.0, 1.25))
-
-    total = max(2, int(JOB["timeline"]["total_frames"]))
-    camera.keyframe_insert(data_path="location", frame=1)
-    camera.keyframe_insert(data_path="rotation_euler", frame=1)
-    camera.data.keyframe_insert(data_path="lens", frame=1)
-    camera.location.x += 0.45
-    camera.location.y += 0.2
-    point_camera(camera, (0.45, 0.0, 1.35))
-    camera.keyframe_insert(data_path="location", frame=total)
-    camera.keyframe_insert(data_path="rotation_euler", frame=total)
-    camera.data.keyframe_insert(data_path="lens", frame=total)
-    return camera
+def key_look(pose, start_frame, end_frame, position, yaw, intensity, target):
+    mid = (start_frame + end_frame) // 2
+    direction = 1.0
+    target_text = str(target).lower()
+    if any(word in target_text for word in ("kiri", "left")):
+        direction = -1.0
+    elif any(word in target_text for word in ("kanan", "right", "camera")):
+        direction = 1.0
+    angle = math.radians(25.0 * intensity) * direction
+    neutral_pose(pose, start_frame, position, yaw)
+    keyframe_pose_bone(pose["neck"], mid, rotation=(0.0, math.radians(4.0), angle * 0.35))
+    keyframe_pose_bone(pose["head"], mid, rotation=(math.radians(-2.0), 0.0, angle))
+    keyframe_pose_bone(pose["ear.L"], mid, rotation=(0.0, math.radians(8.0), math.radians(2.0)))
+    keyframe_pose_bone(pose["ear.R"], mid, rotation=(0.0, -math.radians(5.0), -math.radians(2.0)))
+    neutral_pose(pose, end_frame, position, yaw, tail_phase=1.2)
 
 
-def configure_scene():
+def key_wave(pose, start_frame, end_frame, position, yaw, intensity):
+    span = max(1, end_frame - start_frame)
+    frames = [
+        start_frame,
+        start_frame + span // 4,
+        start_frame + span // 2,
+        start_frame + (span * 3) // 4,
+        end_frame,
+    ]
+    wrist_angles = (0.0, -22.0, 22.0, -22.0, 0.0)
+    for index, frame in enumerate(frames):
+        neutral_pose(pose, frame, position, yaw, tail_phase=index * 0.65)
+        lift = math.sin(math.pi * index / max(1, len(frames) - 1))
+        keyframe_pose_bone(
+            pose["upper_arm.R"],
+            frame,
+            rotation=(math.radians(-55.0 * lift * intensity), math.radians(-16.0), math.radians(58.0 * lift)),
+        )
+        keyframe_pose_bone(
+            pose["forearm.R"],
+            frame,
+            rotation=(math.radians(-82.0 * lift), 0.0, math.radians(wrist_angles[index] * intensity)),
+        )
+        keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(-2.0), 0.0, math.radians(-7.0 * lift)))
+        key_tail(pose, frame, index * 0.8, amplitude=0.75, lift=0.9)
+
+
+def key_surprised(pose, start_frame, end_frame, position, yaw, intensity):
+    span = max(1, end_frame - start_frame)
+    frames = [start_frame, start_frame + span // 3, start_frame + (span * 2) // 3, end_frame]
+    for index, frame in enumerate(frames):
+        amount = (0.0, 1.0, 0.75, 0.0)[index]
+        hop = 0.10 * intensity * amount
+        keyframe_pose_bone(
+            pose["root"],
+            frame,
+            location=(position.x, position.y, position.z + hop),
+            rotation=(0.0, 0.0, yaw),
+        )
+        keyframe_pose_bone(
+            pose["pelvis"],
+            frame,
+            rotation=(math.radians(-7.0 * amount), 0.0, 0.0),
+            scale=(1.0 + 0.05 * amount, 1.0 + 0.05 * amount, 1.0 - 0.09 * amount),
+        )
+        keyframe_pose_bone(pose["spine"], frame, rotation=(math.radians(10.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(-12.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["jaw"], frame, rotation=(math.radians(16.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["ear.L"], frame, rotation=(0.0, math.radians(-14.0 * amount), math.radians(7.0 * amount)))
+        keyframe_pose_bone(pose["ear.R"], frame, rotation=(0.0, math.radians(14.0 * amount), -math.radians(7.0 * amount)))
+        keyframe_pose_bone(pose["upper_arm.L"], frame, rotation=(math.radians(-38.0 * amount), 0.0, math.radians(-38.0 * amount)))
+        keyframe_pose_bone(pose["upper_arm.R"], frame, rotation=(math.radians(-38.0 * amount), 0.0, math.radians(38.0 * amount)))
+        keyframe_pose_bone(pose["forearm.L"], frame, rotation=(math.radians(-65.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["forearm.R"], frame, rotation=(math.radians(-65.0 * amount), 0.0, 0.0))
+        key_tail(pose, frame, index * 0.7, amplitude=1.2 * amount + 0.25, lift=1.25)
+
+
+def key_angry(pose, start_frame, end_frame, position, yaw, intensity):
+    span = max(1, end_frame - start_frame)
+    frames = [start_frame, start_frame + span // 3, start_frame + (span * 2) // 3, end_frame]
+    for index, frame in enumerate(frames):
+        amount = (0.0, 1.0, 1.0, 0.65)[index]
+        keyframe_pose_bone(pose["root"], frame, location=tuple(position), rotation=(0.0, 0.0, yaw))
+        keyframe_pose_bone(pose["pelvis"], frame, rotation=(math.radians(2.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["spine"], frame, rotation=(math.radians(8.0 * amount * intensity), 0.0, 0.0))
+        keyframe_pose_bone(pose["chest"], frame, rotation=(math.radians(10.0 * amount * intensity), 0.0, 0.0))
+        keyframe_pose_bone(pose["head"], frame, rotation=(math.radians(8.0 * amount), 0.0, math.radians(3.0 * (-1 if index % 2 else 1))))
+        keyframe_pose_bone(pose["jaw"], frame, rotation=(math.radians(5.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["ear.L"], frame, rotation=(0.0, math.radians(-16.0 * amount), math.radians(8.0 * amount)))
+        keyframe_pose_bone(pose["ear.R"], frame, rotation=(0.0, math.radians(16.0 * amount), -math.radians(8.0 * amount)))
+        keyframe_pose_bone(pose["upper_arm.L"], frame, rotation=(math.radians(20.0 * amount), 0.0, math.radians(-18.0 * amount)))
+        keyframe_pose_bone(pose["upper_arm.R"], frame, rotation=(math.radians(20.0 * amount), 0.0, math.radians(18.0 * amount)))
+        keyframe_pose_bone(pose["forearm.L"], frame, rotation=(math.radians(-35.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["forearm.R"], frame, rotation=(math.radians(-35.0 * amount), 0.0, 0.0))
+        key_tail(pose, frame, index * 1.6, amplitude=1.4 * amount + 0.25, lift=0.9)
+
+
+def key_stop(pose, start_frame, end_frame, position, yaw, intensity):
+    span = max(1, end_frame - start_frame)
+    frames = [start_frame, start_frame + span // 3, start_frame + (span * 2) // 3, end_frame]
+    for index, frame in enumerate(frames):
+        amount = (1.0, 0.75, 0.25, 0.0)[index]
+        keyframe_pose_bone(pose["root"], frame, location=tuple(position), rotation=(0.0, 0.0, yaw))
+        keyframe_pose_bone(pose["pelvis"], frame, rotation=(math.radians(-8.0 * amount * intensity), 0.0, 0.0))
+        keyframe_pose_bone(pose["spine"], frame, rotation=(math.radians(-12.0 * amount * intensity), 0.0, 0.0))
+        keyframe_pose_bone(pose["chest"], frame, rotation=(math.radians(-7.0 * amount * intensity), 0.0, 0.0))
+        keyframe_pose_bone(pose["thigh.L"], frame, rotation=(math.radians(-20.0 * amount), 0.0, math.radians(-2.0)))
+        keyframe_pose_bone(pose["thigh.R"], frame, rotation=(math.radians(16.0 * amount), 0.0, math.radians(2.0)))
+        keyframe_pose_bone(pose["shin.L"], frame, rotation=(math.radians(28.0 * amount), 0.0, 0.0))
+        keyframe_pose_bone(pose["shin.R"], frame, rotation=(math.radians(18.0 * amount), 0.0, 0.0))
+        key_tail(pose, frame, index * 0.8, amplitude=0.8 * amount + 0.3, lift=0.8)
+    neutral_pose(pose, end_frame, position, yaw, tail_phase=2.2)
+
+
+def animate_rig(armature):
     scene = bpy.context.scene
-    timeline = JOB["timeline"]
-    render = JOB["render"]
-    scene.frame_start = 1
-    scene.frame_end = max(2, int(timeline["total_frames"]))
-    scene.render.fps = int(timeline["fps"])
-    scene.render.resolution_x = int(render["width"])
-    scene.render.resolution_y = int(render["height"])
-    scene.render.resolution_percentage = int(render.get("preview_resolution_percentage", 100))
-    scene.render.engine = "BLENDER_WORKBENCH"
-    scene.display.shading.light = "STUDIO"
-    scene.display.shading.show_shadows = True
-    scene.display.shading.show_cavity = True
-    scene.display.shading.cavity_type = "WORLD"
-    scene.display.shading.color_type = "MATERIAL"
-    scene.render.image_settings.file_format = "FFMPEG"
-    scene.render.ffmpeg.format = "MPEG4"
-    scene.render.ffmpeg.codec = "H264"
-    scene.render.ffmpeg.constant_rate_factor = "MEDIUM"
-    scene.render.filepath = VIDEO_PATH
-    scene.world.color = (0.035, 0.045, 0.065)
+    fps = int(JOB["timeline"]["fps"])
+    total = max(2, int(JOB["timeline"]["total_frames"]))
+    armature.animation_data_clear()
+    pose = armature.pose.bones
+    plan = JOB.get("motion_plan") or {}
+    clips = plan.get("clips") or [
+        {
+            "type": "idle",
+            "start": 0.0,
+            "end": total / fps,
+            "direction": "none",
+            "distance": 0.0,
+            "intensity": 0.5,
+            "target": "",
+        }
+    ]
 
+    current_position = Vector((0.0, 0.0, 0.0))
+    current_yaw = 0.0
+    path = [(1, current_position.copy())]
+    neutral_pose(pose, 1, current_position, current_yaw)
 
-def main():
-    os.makedirs(OUTPUT_ROOT, exist_ok=True)
-    log(f"Starting {JOB.get('job_id', 'unknown')}")
-    clear_scene()
-    configure_scene()
-    add_environment()
-    armature = create_armature()
-    create_character(armature)
-    animate_rig(armature)
-    create_camera()
-    bpy.context.scene.frame_set(1)
-    bpy.ops.wm.save_as_mainfile(filepath=BLEND_PATH)
-    log(f"Rigged blend saved: {BLEND_PATH}")
-    bpy.ops.render.render(animation=True)
-    log(f"Video rendered: {VIDEO_PATH}")
-    print("OYEN_RIG_V1_SUCCESS")
-    print("OYEN_WORKER_SUCCESS")
+    for clip in clips:
+        motion_type = str(clip.get("type", "idle")).lower()
+        start_frame, end_frame = clip_frames(clip, fps, total)
+        intensity = max(0.15, min(1.0, float(clip.get("intensity", 0.65))))
+        distance = max(0.0, min(8.0, float(clip.get("distance", 0.0))))
+        move = direction_vector(clip.get("direction", "none"), current_yaw) * distance
+        end_position = current_position + move
 
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        print(f"OYEN_RIG_V1_ERROR: {exc}")
-        print(traceback.format_exc())
-        raise
+        path.append((start_frame, current_position.copy()))
+        if motion_type == "walk":
+            key_locomotion(
+                pose, start_frame, end_frame, current_position, end_position,
+                current_yaw, fps, intensity, running=False,
+            )
+            current_position = end_position
+        elif motion_type == "run":
+            key_locomotion(
+                pose, start_frame, end_frame, current_position, end_position,
+                current_yaw, fps, intensity, running=True,
+            )

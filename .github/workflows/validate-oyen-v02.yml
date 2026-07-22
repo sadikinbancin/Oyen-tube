@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile hf_space/app.py hf_space/oyen_bridge.py tests/test_oyen_bridge.py
-          python -m unittest tests.test_oyen_bridge -v
+          python -m unittest discover -s tests -p 'test_oyen_bridge.py' -v
 
       - name: Publish validation status
         if: always()

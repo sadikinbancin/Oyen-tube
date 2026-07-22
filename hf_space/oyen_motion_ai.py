@@ -230,30 +230,35 @@ def _gemini_plan(prompt: str, duration: float) -> dict[str, Any]:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured")
     model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     payload = {
-        "contents": [{"parts": [{"text": _planner_prompt(prompt, duration)}]}],
-        "generationConfig": {
-            "responseFormat": {
-                "text": {
-                    "mimeType": "application/json",
-                    "schema": MOTION_SCHEMA,
-                }
-            }
+        "model": model,
+        "input": _planner_prompt(prompt, duration),
+        "response_format": {
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": MOTION_SCHEMA,
         },
     }
     response = _request_json(
-        url,
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
         payload,
         {
             "Content-Type": "application/json",
             "x-goog-api-key": api_key,
         },
     )
-    try:
-        text = response["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError(f"Gemini returned no motion plan: {response}") from exc
+    text = response.get("output_text")
+    if not isinstance(text, str) or not text.strip():
+        outputs = response.get("outputs") or response.get("output") or []
+        if isinstance(outputs, list):
+            for item in outputs:
+                if isinstance(item, dict):
+                    candidate = item.get("text") or item.get("content")
+                    if isinstance(candidate, str) and candidate.strip():
+                        text = candidate
+                        break
+    if not isinstance(text, str) or not text.strip():
+        raise RuntimeError(f"Gemini returned no motion plan: {response}")
     return json.loads(_clean_json_text(text))
 
 

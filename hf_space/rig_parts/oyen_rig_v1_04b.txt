@@ -1,0 +1,218 @@
+            current_position = end_position
+        elif motion_type == "jump":
+            key_jump(
+                pose, start_frame, end_frame, current_position, end_position,
+                current_yaw, intensity,
+            )
+            current_position = end_position
+        elif motion_type == "turn":
+            direction = str(clip.get("direction", "right")).lower()
+            delta = {
+                "left": -math.radians(90.0),
+                "right": math.radians(90.0),
+                "backward": math.radians(180.0),
+                "forward": 0.0,
+                "none": math.radians(40.0),
+            }.get(direction, math.radians(40.0))
+            target_yaw = current_yaw + delta
+            key_turn(
+                pose, start_frame, end_frame, current_position,
+                current_yaw, target_yaw, fps, intensity,
+            )
+            current_yaw = target_yaw
+        elif motion_type == "look":
+            key_look(
+                pose, start_frame, end_frame, current_position, current_yaw,
+                intensity, clip.get("target", "camera"),
+            )
+        elif motion_type == "wave":
+            key_wave(pose, start_frame, end_frame, current_position, current_yaw, intensity)
+        elif motion_type == "tail_wag":
+            key_idle(pose, start_frame, end_frame, current_position, current_yaw, fps, intensity)
+            step = max(1, fps // 5)
+            for frame in range(start_frame, end_frame + 1, step):
+                phase = ((frame - start_frame) / max(1, end_frame - start_frame)) * math.tau * 2.0
+                key_tail(pose, frame, phase, amplitude=1.55 * intensity, lift=1.0)
+        elif motion_type == "surprised":
+            key_surprised(pose, start_frame, end_frame, current_position, current_yaw, intensity)
+        elif motion_type == "angry":
+            key_angry(pose, start_frame, end_frame, current_position, current_yaw, intensity)
+        elif motion_type == "stop":
+            key_stop(pose, start_frame, end_frame, current_position, current_yaw, intensity)
+        else:
+            key_idle(pose, start_frame, end_frame, current_position, current_yaw, fps, intensity)
+
+        path.append((end_frame, current_position.copy()))
+
+    set_interpolation(armature)
+    scene.frame_set(1)
+    return sorted(path, key=lambda item: item[0])
+
+
+def store_motion_plan():
+    text = bpy.data.texts.new("Oyen_AI_Motion_Plan.json")
+    text.write(json.dumps(JOB.get("motion_plan", {}), ensure_ascii=False, indent=2))
+    job_text = bpy.data.texts.new("Oyen_Animation_Job.json")
+    job_text.write(json.dumps(JOB, ensure_ascii=False, indent=2))
+
+
+def add_environment():
+    floor_material = make_material("Floor Warm Gray", (0.18, 0.20, 0.23, 1.0), 0.84)
+    backdrop_material = make_material("Backdrop Warm Sand", (0.68, 0.58, 0.43, 1.0), 0.9)
+    path_material = make_material("Path Accent", (0.30, 0.34, 0.38, 1.0), 0.88)
+
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0, -2.0, -0.03))
+    floor = bpy.context.active_object
+    floor.name = "Oyen_Studio_Floor"
+    floor.data.materials.append(floor_material)
+
+    bpy.ops.mesh.primitive_plane_add(size=24, location=(0, 5.0, 4.0), rotation=(math.radians(90), 0, 0))
+    backdrop = bpy.context.active_object
+    backdrop.name = "Oyen_Studio_Backdrop"
+    backdrop.data.materials.append(backdrop_material)
+
+    bpy.ops.mesh.primitive_plane_add(size=2.2, location=(0, -3.0, -0.015))
+    path = bpy.context.active_object
+    path.name = "Oyen_Forward_Path"
+    path.scale = (1.2, 4.0, 1.0)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    path.data.materials.append(path_material)
+
+    bpy.ops.object.light_add(type="AREA", location=(-3.5, -4.5, 6.2))
+    key = bpy.context.active_object
+    key.data.energy = 1050
+    key.data.size = 5.0
+    key.rotation_euler = (math.radians(25), 0, math.radians(-30))
+
+    bpy.ops.object.light_add(type="AREA", location=(4.0, -2.0, 4.2))
+    fill = bpy.context.active_object
+    fill.data.energy = 620
+    fill.data.size = 4.0
+    fill.rotation_euler = (math.radians(60), 0, math.radians(120))
+
+    bpy.ops.object.light_add(type="AREA", location=(0.0, 2.5, 5.5))
+    rim = bpy.context.active_object
+    rim.data.energy = 780
+    rim.data.size = 3.0
+    rim.rotation_euler = (math.radians(-30), 0, math.radians(180))
+
+
+def point_camera(camera, target):
+    direction = Vector(target) - camera.location
+    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+
+def sample_path(path, frame):
+    if not path:
+        return Vector((0.0, 0.0, 0.0))
+    if frame <= path[0][0]:
+        return path[0][1].copy()
+    for index in range(1, len(path)):
+        left_frame, left_pos = path[index - 1]
+        right_frame, right_pos = path[index]
+        if frame <= right_frame:
+            amount = (frame - left_frame) / max(1, right_frame - left_frame)
+            return lerp_vector(left_pos, right_pos, amount)
+    return path[-1][1].copy()
+
+
+def camera_offset(shot, angle):
+    distance = {"wide": 8.8, "medium": 6.6, "close": 4.1}.get(shot, 6.6)
+    height = {"wide": 2.6, "medium": 2.05, "close": 1.62}.get(shot, 2.05)
+    if angle == "front":
+        return Vector((0.0, -distance, height))
+    if angle == "side":
+        return Vector((distance, 0.15, height))
+    return Vector((distance * 0.52, -distance, height))
+
+
+def create_camera(path):
+    bpy.ops.object.camera_add(location=(3.4, -6.6, 2.2))
+    camera = bpy.context.active_object
+    camera.name = "Oyen_Camera"
+    bpy.context.scene.camera = camera
+
+    fps = int(JOB["timeline"]["fps"])
+    total = max(2, int(JOB["timeline"]["total_frames"]))
+    camera_plan = (JOB.get("motion_plan") or {}).get("camera") or [
+        {"start": 0.0, "end": total / fps, "shot": "medium", "angle": "three_quarter", "follow": True}
+    ]
+
+    for shot in camera_plan:
+        start = max(1, min(total - 1, int(round(float(shot.get("start", 0.0)) * fps)) + 1))
+        end = max(start + 1, min(total, int(round(float(shot.get("end", total / fps)) * fps))))
+        shot_name = str(shot.get("shot", "medium")).lower()
+        angle = str(shot.get("angle", "three_quarter")).lower()
+        follow = bool(shot.get("follow", True))
+        offset = camera_offset(shot_name, angle)
+        camera.data.lens = {"wide": 44, "medium": 53, "close": 65}.get(shot_name, 53)
+
+        start_target = sample_path(path, start)
+        end_target = sample_path(path, end) if follow else start_target.copy()
+        for frame, target in ((start, start_target), (end, end_target)):
+            camera.location = target + offset
+            point_camera(camera, (target.x, target.y, target.z + 1.35))
+            camera.keyframe_insert(data_path="location", frame=frame)
+            camera.keyframe_insert(data_path="rotation_euler", frame=frame)
+            camera.data.keyframe_insert(data_path="lens", frame=frame)
+
+    if camera.animation_data and camera.animation_data.action:
+        for fcurve in camera.animation_data.action.fcurves:
+            for point in fcurve.keyframe_points:
+                point.interpolation = "BEZIER"
+    return camera
+
+
+def configure_scene():
+    scene = bpy.context.scene
+    timeline = JOB["timeline"]
+    render = JOB["render"]
+    scene.frame_start = 1
+    scene.frame_end = max(2, int(timeline["total_frames"]))
+    scene.render.fps = int(timeline["fps"])
+    scene.render.resolution_x = int(render["width"])
+    scene.render.resolution_y = int(render["height"])
+    scene.render.resolution_percentage = int(render.get("preview_resolution_percentage", 100))
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.light = "STUDIO"
+    scene.display.shading.show_shadows = True
+    scene.display.shading.show_cavity = True
+    scene.display.shading.cavity_type = "WORLD"
+    scene.display.shading.color_type = "MATERIAL"
+    scene.render.image_settings.file_format = "FFMPEG"
+    scene.render.ffmpeg.format = "MPEG4"
+    scene.render.ffmpeg.codec = "H264"
+    scene.render.ffmpeg.constant_rate_factor = "MEDIUM"
+    scene.render.filepath = VIDEO_PATH
+    scene.world.color = (0.035, 0.045, 0.065)
+
+
+def main():
+    os.makedirs(OUTPUT_ROOT, exist_ok=True)
+    log(f"Starting AI motion job {JOB.get('job_id', 'unknown')}")
+    clear_scene()
+    configure_scene()
+    add_environment()
+    armature = create_armature()
+    create_character(armature)
+    store_motion_plan()
+    print(f"OYEN_MOTION_PLAN_EMBEDDED clips={len((JOB.get('motion_plan') or {}).get('clips') or [])}")
+    path = animate_rig(armature)
+    create_camera(path)
+    bpy.context.scene.frame_set(1)
+    bpy.ops.wm.save_as_mainfile(filepath=BLEND_PATH)
+    log(f"Rigged blend saved: {BLEND_PATH}")
+    bpy.ops.render.render(animation=True)
+    log(f"Video rendered: {VIDEO_PATH}")
+    print("OYEN_MOTION_AI_SUCCESS")
+    print("OYEN_RIG_V1_SUCCESS")
+    print("OYEN_WORKER_SUCCESS")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"OYEN_MOTION_AI_ERROR: {exc}")
+        print(traceback.format_exc())
+        raise

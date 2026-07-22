@@ -1,0 +1,200 @@
+name: Smoke Test Oyen MP4
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/smoke-huggingface-mp4.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  statuses: write
+
+concurrency:
+  group: oyen-huggingface-mp4-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Mark MP4 smoke test pending
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data '{"state":"pending","context":"huggingface-space/deploy","description":"Rendering a real Oyen MP4 smoke test"}'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Wait for public Space API
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            code=$(curl --silent --location --max-time 20 \
+              --output /tmp/space-config.json \
+              --write-out "%{http_code}" \
+              "https://lako123-belajarh-ani.hf.space/config" || true)
+            if [ "$code" = "200" ] && grep -q "render_mp4" /tmp/space-config.json; then
+              echo "Oyen Space API is ready."
+              exit 0
+            fi
+            echo "Attempt ${attempt}/40: Space not ready yet (HTTP ${code})."
+            sleep 15
+          done
+          echo "Space API did not become ready."
+          exit 1
+
+      - name: Render and download MP4
+        id: render
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            python -m pip install --quiet "gradio_client==1.13.3"
+            python - <<'PY'
+          from __future__ import annotations
+
+          import shutil
+          from pathlib import Path
+          from typing import Any, Iterable
+
+          from gradio_client import Client
+
+
+          def walk(value: Any) -> Iterable[str]:
+              if value is None:
+                  return
+              if isinstance(value, (str, Path)):
+                  yield str(value)
+                  return
+              if isinstance(value, dict):
+                  for item in value.values():
+                      yield from walk(item)
+                  return
+              if isinstance(value, (list, tuple)):
+                  for item in value:
+                      yield from walk(item)
+                  return
+              path = getattr(value, "path", None)
+              if path:
+                  yield str(path)
+
+
+          client = Client("https://lako123-belajarh-ani.hf.space", verbose=True)
+          result = client.predict(
+              "Oyen berjalan dua langkah, menoleh ke kamera, lalu mengibaskan ekornya.",
+              "3D Blender",
+              "Oyen Cartoon",
+              3,
+              "9:16",
+              12,
+              "360p cepat",
+              False,
+              api_name="/render_mp4",
+          )
+
+          print("SMOKE_RESULT:", result)
+          paths = []
+          for raw in walk(result):
+              path = Path(raw)
+              if path.suffix.lower() == ".mp4" and path.is_file():
+                  paths.append(path)
+
+          if not paths:
+              raise RuntimeError("Space did not return a downloadable MP4 file")
+
+          video = max(paths, key=lambda item: item.stat().st_size)
+          size = video.stat().st_size
+          if size < 1024:
+              raise RuntimeError(f"Returned MP4 is empty or too small: {size} bytes")
+
+          target = Path("/tmp/oyen-smoke-test.mp4")
+          shutil.copy2(video, target)
+          print(f"OYEN_MP4_SMOKE_SUCCESS path={target} bytes={target.stat().st_size}")
+          PY
+          } 2>&1 | tee /tmp/oyen-smoke.log
+
+      - name: Upload verified MP4 artifact
+        if: steps.render.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oyen-verified-smoke-video
+          path: /tmp/oyen-smoke-test.mp4
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Publish diagnostics branch
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# Oyen MP4 smoke diagnostics"
+            echo
+            echo "- Source commit: \`${GITHUB_SHA}\`"
+            echo "- Render outcome: \`${RENDER_OUTCOME}\`"
+            echo
+            echo '```text'
+            if [ -f /tmp/oyen-smoke.log ]; then
+              tail -c 16000 /tmp/oyen-smoke.log
+            else
+              echo "No smoke log was produced."
+            fi
+            echo
+            echo '```'
+          } > /tmp/latest.md
+
+          rm -rf /tmp/diagnostics-repo
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/diagnostics-repo
+          cd /tmp/diagnostics-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan smoke-diagnostics-work
+          git rm -rf .
+          cp /tmp/latest.md latest.md
+          git add latest.md
+          git commit -m "smoke diagnostics: ${GITHUB_SHA::7}"
+          git push --force origin HEAD:diagnostics
+
+      - name: Publish final commit status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$RENDER_OUTCOME" = "success" ]; then
+            state="success"
+            description="Oyen Space produced a verified MP4"
+          else
+            state="failure"
+            description="Oyen Space failed the real MP4 smoke test"
+          fi
+          payload=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$state" "$description")
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data "$payload"
+
+      - name: Fail unless a real MP4 exists
+        if: steps.render.outcome != 'success'
+        run: exit 1

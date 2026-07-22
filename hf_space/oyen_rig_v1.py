@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 _PARTS_DIR = Path(__file__).resolve().parent / "rig_parts"
-_PART_NAMES = tuple(f"oyen_rig_v1_{index:02d}.txt" for index in range(1, 5))
+_PART_NAMES = tuple(f"oyen_rig_v1_{index:02d}.txt" for index in range(1, 6))
 
 
 def _load_template() -> str:

@@ -1,4 +1,4 @@
-name: Validate Oyen V0.3
+name: Validate Oyen Purba Rig V0.4
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - "hf_space/**"
       - "tests/test_oyen_bridge.py"
       - "tests/test_oyen_runtime.py"
+      - "docs/OYEN_PURBA_RIG_SPEC.md"
       - ".github/workflows/validate-oyen-v02.yml"
   workflow_dispatch:
 
@@ -16,7 +17,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: oyen-v03-validation
+  group: oyen-v04-validation
   cancel-in-progress: true
 
 jobs:
@@ -36,7 +37,7 @@ jobs:
             --header "Authorization: Bearer ${GITHUB_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"pending","context":"oyen-v03/validate","description":"Validating direct MP4 runtime"}'
+            --data '{"state":"pending","context":"oyen-v04/validate","description":"Validating Oyen Purba 28-bone rig"}'
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,7 +47,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate Python and render adapter
+      - name: Validate rig generator and runtime
         id: validation
         continue-on-error: true
         run: |
@@ -59,6 +60,10 @@ jobs:
             tests/test_oyen_runtime.py
           python -m unittest discover -s tests -p 'test_oyen_*.py' -v
           grep -qx 'blender' hf_space/packages.txt
+          grep -qx 'libegl1' hf_space/packages.txt
+          grep -q 'OyenPurba_Rig' hf_space/oyen_bridge.py
+          grep -q 'OYEN_RIG_READY' hf_space/oyen_bridge.py
+          grep -q 'bone_count": RIG_BONE_COUNT' hf_space/app.py
 
       - name: Publish validation status
         if: always()
@@ -67,17 +72,14 @@ jobs:
           VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
         run: |
           set -euo pipefail
-
           if [ "$VALIDATION_OUTCOME" = "success" ]; then
             STATE="success"
-            DESCRIPTION="Oyen V0.3 direct MP4 runtime is valid"
+            DESCRIPTION="Oyen Purba 28-bone rig generator is valid"
           else
             STATE="failure"
-            DESCRIPTION="Oyen V0.3 validation failed"
+            DESCRIPTION="Oyen Purba rig validation failed"
           fi
-
-          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v03/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
-
+          PAYLOAD=$(printf '{"state":"%s","context":"oyen-v04/validate","description":"%s"}' "$STATE" "$DESCRIPTION")
           curl --fail-with-body \
             --request POST \
             --header "Accept: application/vnd.github+json" \

@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   statuses: write
 
 concurrency:
@@ -63,12 +63,10 @@ jobs:
 
           rm -rf /tmp/oyen-hf-space
           git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" /tmp/oyen-hf-space
-
           rsync -av --delete --exclude=".git/" hf_space/ /tmp/oyen-hf-space/
 
           cd /tmp/oyen-hf-space
           git add -A
-
           if git diff --cached --quiet; then
             echo "Hugging Face Space is already up to date."
             exit 0
@@ -108,7 +106,7 @@ jobs:
 
           echo "Space did not become healthy in time."
           if [ -f /tmp/oyen-space-config.json ]; then
-            tail -c 2000 /tmp/oyen-space-config.json || true
+            tail -c 4000 /tmp/oyen-space-config.json || true
           fi
           exit 1
 
@@ -122,12 +120,16 @@ jobs:
         id: smoke
         if: steps.health.outcome == 'success'
         continue-on-error: true
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          set -euo pipefail
-          python -m pip install --quiet "gradio_client==1.13.3"
-          python - <<'PY'
+          set -o pipefail
+          {
+            python -m pip install --quiet "gradio_client==1.13.3"
+            python - <<'PY'
           from __future__ import annotations
 
+          import os
           import shutil
           from pathlib import Path
           from typing import Any, Iterable
@@ -154,7 +156,11 @@ jobs:
                   yield str(path)
 
 
-          client = Client("https://lako123-belajarh-ani.hf.space", verbose=True)
+          client = Client(
+              "https://lako123-belajarh-ani.hf.space",
+              token=os.environ.get("HF_TOKEN"),
+              verbose=True,
+          )
           result = client.predict(
               "Oyen berjalan dua langkah, menoleh ke kamera, lalu mengibaskan ekornya.",
               "3D Blender",
@@ -185,6 +191,7 @@ jobs:
           shutil.copy2(video, target)
           print(f"OYEN_MP4_SMOKE_SUCCESS path={target} bytes={target.stat().st_size}")
           PY
+          } 2>&1 | tee /tmp/oyen-smoke.log
 
       - name: Upload smoke-test MP4
         if: steps.smoke.outcome == 'success'
@@ -194,6 +201,51 @@ jobs:
           path: /tmp/oyen-smoke-test.mp4
           retention-days: 3
           if-no-files-found: error
+
+      - name: Publish diagnostic report branch
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          HEALTH_OUTCOME: ${{ steps.health.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "# Oyen MP4 deployment diagnostics"
+            echo
+            echo "- Source commit: \`${GITHUB_SHA}\`"
+            echo "- Deploy: \`${DEPLOY_OUTCOME}\`"
+            echo "- Health: \`${HEALTH_OUTCOME}\`"
+            echo "- Smoke MP4: \`${SMOKE_OUTCOME}\`"
+            echo
+            echo '```text'
+            if [ -f /tmp/oyen-smoke.log ]; then
+              tail -c 14000 /tmp/oyen-smoke.log
+            else
+              echo "Smoke test was not executed."
+              if [ -f /tmp/oyen-space-config.json ]; then
+                echo
+                echo "Space config response:"
+                tail -c 6000 /tmp/oyen-space-config.json
+              fi
+            fi
+            echo
+            echo '```'
+          } > /tmp/oyen-diagnostics.md
+
+          rm -rf /tmp/oyen-diagnostics-repo
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/oyen-diagnostics-repo
+          cd /tmp/oyen-diagnostics-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan diagnostics-work
+          git rm -rf .
+          cp /tmp/oyen-diagnostics.md latest.md
+          git add latest.md
+          git commit -m "diagnostics: ${GITHUB_SHA::7}"
+          git push --force origin HEAD:diagnostics
 
       - name: Publish deployment status
         if: always()
@@ -234,8 +286,7 @@ jobs:
           echo "- Push outcome: \`${DEPLOY_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Runtime health: \`${HEALTH_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Real MP4 smoke render: \`${SMOKE_OUTCOME}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Target: \`lako123/Belajarh-ani\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- API tested: \`/render_mp4\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Diagnostic branch: \`diagnostics/latest.md\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail workflow unless MP4 was produced
         if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success' || steps.smoke.outcome != 'success'

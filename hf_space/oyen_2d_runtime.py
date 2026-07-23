@@ -80,6 +80,104 @@ def _marker_count(log: str, label: str) -> int:
     return int(match.group(1))
 
 
+def _normalise_video_output(output_dir: Path, target: Path) -> tuple[Path, str]:
+    """Create the exact MP4 expected by the Space across Blender/FFmpeg versions.
+
+    Older Debian Blender builds may append a frame range and emit a Matroska file even
+    when the configured render prefix ends in ``.mp4``. The frames and H.264 stream are
+    valid, so this function remuxes that movie into the stable public MP4 filename.
+    """
+    if target.is_file() and target.stat().st_size >= 2_048:
+        return target, "MP4_NORMALIZATION exact-output-present"
+
+    supported_suffixes = {".mkv", ".mp4", ".mov", ".avi", ".webm"}
+    candidates = [
+        path
+        for path in output_dir.glob("oyen_2d_preview*")
+        if path.is_file()
+        and path != target
+        and path.suffix.lower() in supported_suffixes
+        and path.stat().st_size >= 2_048
+    ]
+    if not candidates:
+        generated = ", ".join(sorted(path.name for path in output_dir.iterdir()))
+        raise Oyen2DRuntimeError(
+            "Blender tidak menghasilkan movie yang dapat dinormalisasi. "
+            f"Isi output: {generated}"
+        )
+
+    source = max(candidates, key=lambda path: path.stat().st_size)
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise Oyen2DRuntimeError(
+            f"Blender menghasilkan {source.name}, tetapi ffmpeg tidak ditemukan untuk membuat MP4"
+        )
+
+    attempts = [
+        [
+            ffmpeg,
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            str(source),
+            "-map",
+            "0:v:0",
+            "-c:v",
+            "copy",
+            "-movflags",
+            "+faststart",
+            "-an",
+            str(target),
+        ],
+        [
+            ffmpeg,
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            str(source),
+            "-map",
+            "0:v:0",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-movflags",
+            "+faststart",
+            "-an",
+            str(target),
+        ],
+    ]
+    diagnostics: list[str] = []
+    for index, command in enumerate(attempts, start=1):
+        target.unlink(missing_ok=True)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        diagnostics.append(
+            f"attempt={index} exit={completed.returncode} stderr={_tail(completed.stderr, 1800)}"
+        )
+        if completed.returncode == 0 and target.is_file() and target.stat().st_size >= 2_048:
+            return (
+                target,
+                f"MP4_NORMALIZATION source={source.name} target={target.name} "
+                + " | ".join(diagnostics),
+            )
+
+    raise Oyen2DRuntimeError(
+        f"Gagal menormalisasi {source.name} menjadi MP4. " + " | ".join(diagnostics)
+    )
+
+
 def render_2d_job(
     job: dict[str, Any],
     output_root: str | Path,
@@ -128,8 +226,16 @@ def render_2d_job(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-        stderr = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        stdout = (
+            exc.stdout.decode("utf-8", errors="replace")
+            if isinstance(exc.stdout, bytes)
+            else (exc.stdout or "")
+        )
+        stderr = (
+            exc.stderr.decode("utf-8", errors="replace")
+            if isinstance(exc.stderr, bytes)
+            else (exc.stderr or "")
+        )
         log_path.write_text(
             f"COMMAND: {' '.join(command)}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}",
             encoding="utf-8",
@@ -152,7 +258,9 @@ def render_2d_job(
         "OYEN_2D_RENDER_SUCCESS",
         "OYEN_WORKER_SUCCESS",
     )
-    if completed.returncode != 0 or any(marker not in completed.stdout for marker in required_markers):
+    if completed.returncode != 0 or any(
+        marker not in completed.stdout for marker in required_markers
+    ):
         raise Oyen2DRuntimeError(
             "Blender gagal membuktikan pipeline Oyen 2D Tahap 1–7.\n"
             + _tail(completed.stderr or completed.stdout)
@@ -170,6 +278,10 @@ def render_2d_job(
         )
 
     video_path = output_dir / "oyen_2d_preview.mp4"
+    video_path, normalisation_log = _normalise_video_output(output_dir, video_path)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n\n{normalisation_log}\n")
+
     blend_path = output_dir / "oyen_2d_preview.blend"
     if not video_path.is_file() or video_path.stat().st_size < 2_048:
         raise Oyen2DRuntimeError("MP4 Oyen 2D tidak ditemukan atau terlalu kecil")

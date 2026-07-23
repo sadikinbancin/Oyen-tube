@@ -25,4 +25,6 @@ V0.6 menjalankan pipeline uji **Tahap 1–7** dari brand sheet Oyen Purba:
 
 AI tidak boleh menjalankan Python bebas atau mengarang karakter pengganti. Blender merender lima frame QA sebelum MP4. Runtime menormalisasi keluaran movie Blender lama maupun baru menjadi satu nama MP4 yang stabil. Space mengembalikan MP4, `.blend`, JSON job, log Blender, serta contact sheet untuk pemeriksaan visual.
 
+GitHub `main` adalah sumber produksi. Setiap perubahan `hf_space/` harus melewati validasi Oyen V0.6 dan deployment yang membuktikan render langsung di Hugging Face Space.
+
 Ini adalah **uji cutout 2D pertama**, belum puppet studio-quality. Sudut motion dibuat konservatif agar Oyen tetap dikenali dan sambungan layer tidak mudah terbuka.

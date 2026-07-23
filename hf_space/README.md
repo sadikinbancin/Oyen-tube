@@ -23,6 +23,6 @@ V0.6 menjalankan pipeline uji **Tahap 1–7** dari brand sheet Oyen Purba:
 6. Tujuh Action resmi: idle, blink, walk, run, head turn, wave, dan tail wag.
 7. AI Motion Director library-only yang menyusun NLA, ekspresi, blink, root motion, kamera, QA, MP4, dan `.blend`.
 
-AI tidak boleh menjalankan Python bebas atau mengarang karakter pengganti. Blender merender lima frame QA sebelum MP4. Space mengembalikan MP4, `.blend`, JSON job, log Blender, serta contact sheet untuk pemeriksaan visual.
+AI tidak boleh menjalankan Python bebas atau mengarang karakter pengganti. Blender merender lima frame QA sebelum MP4. Runtime menormalisasi keluaran movie Blender lama maupun baru menjadi satu nama MP4 yang stabil. Space mengembalikan MP4, `.blend`, JSON job, log Blender, serta contact sheet untuk pemeriksaan visual.
 
 Ini adalah **uji cutout 2D pertama**, belum puppet studio-quality. Sudut motion dibuat konservatif agar Oyen tetap dikenali dan sambungan layer tidak mudah terbuka.

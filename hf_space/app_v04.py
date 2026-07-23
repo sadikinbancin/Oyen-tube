@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import gradio as gr
+import spaces
 
 from oyen_2d_asset_bundle import load_embedded_manifest
 from oyen_2d_director import ACTION_LIBRARY, build_2d_motion_plan, compile_nla_timeline
@@ -110,6 +111,23 @@ def _create_job(
     }
 
 
+def _zerogpu_duration(
+    prompt: str,
+    mode: str,
+    style: str,
+    duration: int,
+    aspect_ratio: str,
+    fps: int,
+    resolution: str,
+    include_audio: bool,
+) -> int:
+    """Reserve enough ZeroGPU time for Blender without claiming a full daily quota."""
+
+    del prompt, mode, style, aspect_ratio, fps, resolution, include_audio
+    return min(180, max(120, 75 + int(duration) * 15))
+
+
+@spaces.GPU(duration=_zerogpu_duration)
 def create_animation_video(
     prompt: str,
     mode: str,

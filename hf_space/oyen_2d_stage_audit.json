@@ -1,0 +1,42 @@
+{
+  "schema_version": "oyen.2d-stage-audit.v1",
+  "character": "Oyen Purba 2D Test V1",
+  "stages": {
+    "1_layers": {
+      "status": "implemented",
+      "proof": ["oyen_2d_asset_parts/*.b64", "embedded oyen_2d_layer_manifest.json"]
+    },
+    "2_pivots": {
+      "status": "implemented",
+      "proof": ["embedded manifest bone pivot and tail coordinates"]
+    },
+    "3_rig_bones": {
+      "status": "implemented",
+      "proof": ["oyen_2d_builder.py creates Oyen_Purba_2D_Rig"]
+    },
+    "4_transparent_png": {
+      "status": "implemented",
+      "proof": ["checksum-protected transparent PNG bundle"],
+      "minimum_png_count": 40
+    },
+    "5_blender_import_parenting": {
+      "status": "implemented",
+      "proof": ["textured cutout planes, Z-order and bone parenting"]
+    },
+    "6_motion_library": {
+      "status": "implemented",
+      "proof": ["seven reusable Blender Actions and deterministic NLA"]
+    },
+    "7_ai_motion_director": {
+      "status": "implemented",
+      "proof": ["validated library-only Indonesian prompt planner"]
+    }
+  },
+  "render_gate": {
+    "requires_mp4": true,
+    "requires_blend": true,
+    "requires_contact_sheet": true,
+    "requires_five_nonblank_qa_frames": true,
+    "requires_library_only_marker": true
+  }
+}

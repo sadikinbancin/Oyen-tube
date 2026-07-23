@@ -1,5 +1,5 @@
 ---
-title: Oyen Purba Motion AI Studio
+title: Oyen Purba 2D Cutout Studio
 emoji: 🐈
 colorFrom: yellow
 colorTo: red
@@ -8,52 +8,21 @@ sdk_version: 5.49.1
 app_file: app_v04.py
 pinned: false
 license: mit
-short_description: AI motion plans for Oyen Blender animations
+short_description: Oyen Purba 2D cutout rig and Motion Director
 ---
 
-# Oyen Purba Motion AI Studio
+# Oyen Purba 2D Cutout Studio
 
-V0.5 converts an Indonesian animation prompt into a validated motion plan, then makes the **Oyen Purba** Blender armature execute that plan.
+V0.6 menjalankan pipeline uji **Tahap 1–7** dari brand sheet Oyen Purba:
 
-## Motion AI V0.5
+1. Layer tubuh, wajah, kostum, aksesori, kaki, tangan, dan ekor transparan.
+2. Pivot anatomis tetap dari manifest aset.
+3. Armature cutout 2D dengan sedikitnya 25 bone/control.
+4. Paket PNG transparan committed, dibagi menjadi 12 bagian, dan dilindungi checksum SHA-256.
+5. Import, depth/Z-order, material alpha, serta bone parenting otomatis di Blender.
+6. Tujuh Action resmi: idle, blink, walk, run, head turn, wave, dan tail wag.
+7. AI Motion Director library-only yang menyusun NLA, ekspresi, blink, root motion, kamera, QA, MP4, dan `.blend`.
 
-- Gemini structured-output API is used when the Space secret `GEMINI_API_KEY` exists.
-- Groq structured-output API is the second provider when `GROQ_API_KEY` exists.
-- A local Indonesian prompt parser remains available when neither secret is configured or an API request fails.
-- AI output is validated and limited to safe motion clips: idle, walk, run, jump, turn, look, wave, tail wag, surprised, angry, and stop.
-- The AI never sends arbitrary Python into Blender.
-- Oyen's forward axis is fixed to world **-Y**; X is only left/right, so forward locomotion no longer slides sideways.
-- Camera keyframes follow the character's actual path.
-- The generated `.blend` includes `Oyen_AI_Motion_Plan.json` and `Oyen_Animation_Job.json` in Blender's Text Editor.
+AI tidak boleh menjalankan Python bebas atau mengarang karakter pengganti. Blender merender lima frame QA sebelum MP4. Runtime menormalisasi keluaran movie Blender lama maupun baru menjadi satu nama MP4 yang stabil. Space mengembalikan MP4, `.blend`, JSON job, log Blender, serta contact sheet untuk pemeriksaan visual.
 
-## Character and rig improvements
-
-- 34-bone armature with body, head, jaw, ears, arms, legs and five tail bones.
-- IK hand and foot controls with elbow and knee pole targets.
-- Flatter eyes, smaller muzzle and fangs, slimmer limbs and a more continuous overlapping tail.
-- Prompt-specific anticipation, action, follow-through and settle poses.
-
-## Add an AI provider safely
-
-Open the Hugging Face Space **Settings → Variables and secrets → New secret** and add one of:
-
-```text
-GEMINI_API_KEY
-```
-
-or:
-
-```text
-GROQ_API_KEY
-```
-
-Do not place an API key in this repository, the prompt, JSON output, or `.blend` file. Adding a Space secret restarts the app automatically.
-
-Optional non-secret model overrides:
-
-```text
-GEMINI_MODEL=gemini-3.6-flash
-GROQ_MODEL=openai/gpt-oss-20b
-```
-
-Rig V1.1 remains a procedural segmented model. A later Rig V2 will require a unified retopologized mesh, deformation weight painting, IK/FK production controls and facial shape keys for truly polished character animation.
+Ini adalah **uji cutout 2D pertama**, belum puppet studio-quality. Sudut motion dibuat konservatif agar Oyen tetap dikenali dan sambungan layer tidak mudah terbuka.

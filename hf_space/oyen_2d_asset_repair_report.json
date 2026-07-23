@@ -1,0 +1,45 @@
+{
+  "schema_version": "oyen.2d-asset-repair.v1",
+  "verification_state": "rebuilt_and_zip_tested",
+  "source_sha256": "095f3bed0cb17e60a53fcfccf65574bb7dc601f423373769e83644e3fe7d3b49",
+  "valid_sha256": "a82540c49f52d5c94f6b8621d23d840b1646e5f4d8c271eefc366b198eb62246",
+  "valid_zip_bytes": 145452,
+  "entry_count": 51,
+  "recovered_source_issues": {
+    "layers/eye_R_angry.png": {
+      "expected_crc": "8af1c822",
+      "actual_crc": "09e14aae",
+      "expected_size": 1037,
+      "actual_size": 1037,
+      "trailing_bytes": 3
+    },
+    "layers/oyen_full_neutral.png": {
+      "expected_crc": "02429880",
+      "actual_crc": "5814c421",
+      "expected_size": 8709,
+      "actual_size": 8709,
+      "trailing_bytes": 0
+    },
+    "layers/thigh_L.png": {
+      "expected_crc": "599dc1fa",
+      "actual_crc": "a682b355",
+      "expected_size": 1311,
+      "actual_size": 1311,
+      "trailing_bytes": 0
+    },
+    "layers/upper_arm_R.png": {
+      "expected_crc": "8b00ca4b",
+      "actual_crc": "b71c54ea",
+      "expected_size": 953,
+      "actual_size": 953,
+      "trailing_bytes": 0
+    }
+  },
+  "png_repairs": {
+    "layers/eye_R_angry.png": "mirrored:layers/eye_L_angry.png",
+    "layers/oyen_full_neutral.png": "truncated-recovery:OSError",
+    "layers/thigh_L.png": "truncated-recovery:OSError",
+    "layers/upper_arm_R.png": "truncated-recovery:OSError"
+  },
+  "part_count": 12
+}

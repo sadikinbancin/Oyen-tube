@@ -5,6 +5,10 @@ on:
     branches: [agent/probe-main-v06-status]
     paths:
       - ".github/workflows/diagnose-main-v06.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/diagnose-main-v06.yml"
   workflow_dispatch:
 
 permissions:

@@ -97,13 +97,18 @@ class Oyen2DPipelineTests(unittest.TestCase):
         self.assertGreater(timeline["root_motion"][0]["delta_x"], 0)
         self.assertEqual(timeline["camera"]["mode"], "follow")
 
-    def test_space_entrypoint_has_zerogpu_decorator(self) -> None:
-        source = (HF / "app_v04.py").read_text(encoding="utf-8")
-        self.assertIn("import spaces", source)
-        self.assertIn("@spaces.GPU(duration=_zerogpu_duration)", source)
-        self.assertIn("def create_animation_video(", source)
-        self.assertIn('api_name="render_mp4"', source)
-        self.assertNotIn('request_space_hardware', source)
+    def test_space_entrypoint_keeps_zerogpu_probe_and_cpu_render_app(self) -> None:
+        shim = (HF / "app_v04.py").read_text(encoding="utf-8")
+        app = (HF / "app_v06.py").read_text(encoding="utf-8")
+        self.assertIn("import spaces", shim)
+        self.assertIn("@spaces.GPU(duration=_zerogpu_duration)", shim)
+        self.assertIn("from app_v06 import demo", shim)
+        self.assertIn("def create_animation_video(", app)
+        self.assertIn('api_name="render_mp4"', app)
+        self.assertIn("@spaces.GPU(duration=1)", app)
+        self.assertIn('api_name="zerogpu_healthcheck"', app)
+        self.assertNotIn("request_space_hardware", shim)
+        self.assertNotIn("request_space_hardware", app)
 
 
 if __name__ == "__main__":

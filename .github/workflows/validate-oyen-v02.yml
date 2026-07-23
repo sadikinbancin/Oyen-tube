@@ -5,17 +5,12 @@ on:
     branches: [agent/probe-main-v06-status]
     paths:
       - ".github/workflows/validate-oyen-v02.yml"
-      - "tests/test_oyen_2d_live_status_probe.py"
-  pull_request:
-    branches: [main]
-    paths:
-      - ".github/workflows/validate-oyen-v02.yml"
-      - "tests/test_oyen_2d_live_status_probe.py"
   workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
+  issues: write
 
 jobs:
   probe:
@@ -36,8 +31,7 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/89169312667/logs" \
             -o /tmp/main-zero-deploy.log
-          echo "=== failure tail ==="
-          tail -n 220 /tmp/main-zero-deploy.log
+          tail -n 180 /tmp/main-zero-deploy.log > /tmp/main-zero-deploy-tail.log
 
       - name: Capture current public Space state
         run: |
@@ -48,7 +42,42 @@ jobs:
           curl --silent --location --max-time 30 \
             "https://lako123-belajarh-ani.hf.space/config" \
             -o /tmp/hf-config.json || true
-          cat /tmp/hf-runtime.json
+
+      - name: Publish exact diagnostic tail to PR 7
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          tail = Path('/tmp/main-zero-deploy-tail.log').read_text(encoding='utf-8', errors='replace')
+          runtime = Path('/tmp/hf-runtime.json').read_text(encoding='utf-8', errors='replace')
+          config = Path('/tmp/hf-config.json').read_text(encoding='utf-8', errors='replace')[:1200]
+          body = (
+              '### OYEN_V06_EXACT_DEPLOY_DIAGNOSTIC\n\n'
+              'HF runtime:\n```json\n' + runtime + '\n```\n\n'
+              'Deploy log tail:\n```text\n' + tail[-45000:] + '\n```\n\n'
+              'HF config prefix:\n```text\n' + config + '\n```'
+          )
+          data = json.dumps({'body': body}).encode('utf-8')
+          request = urllib.request.Request(
+              'https://api.github.com/repos/sadikinbancin/Oyen-tube/issues/7/comments',
+              data=data,
+              method='POST',
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'Content-Type': 'application/json',
+                  'User-Agent': 'oyen-v06-diagnostic',
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              print(response.status, response.read().decode('utf-8')[:500])
+          PY
 
       - uses: actions/upload-artifact@v4
         with:

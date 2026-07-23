@@ -32,18 +32,29 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install --quiet "pillow>=10,<12"
+      - name: Materialize exact committed asset bytes
+        run: |
+          PYTHONPATH=hf_space python - <<'PY'
+          from pathlib import Path
+          from oyen_2d_asset_bundle import asset_zip_bytes
+          raw = asset_zip_bytes()
+          Path('/tmp/oyen_2d_assets_committed.zip').write_bytes(raw)
+          print(f'ASSET_BYTES={len(raw)}')
+          PY
       - name: Run compact unit diagnostics
         id: tests
         continue-on-error: true
         run: |
           set -o pipefail
           PYTHONPATH=hf_space python -m unittest discover -s tests -p 'test_oyen_2d*.py' -v 2>&1 | tee /tmp/oyen-v06-unit.log
-      - name: Upload exact diagnostic log
+      - name: Upload exact diagnostic files
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: oyen-v06-unit-diagnostic
-          path: /tmp/oyen-v06-unit.log
+          path: |
+            /tmp/oyen-v06-unit.log
+            /tmp/oyen_2d_assets_committed.zip
           retention-days: 1
           if-no-files-found: error
       - name: Print exact diagnostic tail

@@ -1,0 +1,55 @@
+{
+  "schema_version": "oyen.2d-motion-library.v1",
+  "character": "Oyen Purba 2D Test V1",
+  "fps": 12,
+  "rig_object": "Oyen_Purba_2D_Rig",
+  "root_bone": "CTRL_ROOT",
+  "actions": {
+    "OYEN_IDLE": {
+      "duration_frames": 24,
+      "loop": true,
+      "track": "base"
+    },
+    "OYEN_BLINK": {
+      "duration_frames": 6,
+      "loop": false,
+      "track": "face_overlay"
+    },
+    "OYEN_WALK_IN_PLACE": {
+      "duration_frames": 12,
+      "loop": true,
+      "track": "locomotion"
+    },
+    "OYEN_RUN_IN_PLACE": {
+      "duration_frames": 8,
+      "loop": true,
+      "track": "locomotion"
+    },
+    "OYEN_HEAD_TURN": {
+      "duration_frames": 12,
+      "loop": false,
+      "track": "upper_overlay"
+    },
+    "OYEN_WAVE": {
+      "duration_frames": 24,
+      "loop": false,
+      "track": "upper_overlay"
+    },
+    "OYEN_TAIL_WAG": {
+      "duration_frames": 24,
+      "loop": true,
+      "track": "tail_overlay"
+    }
+  },
+  "expressions": [
+    "NEUTRAL",
+    "HAPPY",
+    "ANGRY",
+    "SURPRISED"
+  ],
+  "policy": {
+    "library_only": true,
+    "arbitrary_python_allowed": false,
+    "missing_assets_use_offscreen_target": true
+  }
+}

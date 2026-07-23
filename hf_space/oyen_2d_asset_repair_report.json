@@ -1,5 +1,6 @@
 {
   "schema_version": "oyen.2d-asset-repair.v1",
+  "verification_state": "rebuilt_and_zip_tested",
   "source_sha256": "095f3bed0cb17e60a53fcfccf65574bb7dc601f423373769e83644e3fe7d3b49",
   "valid_sha256": "a82540c49f52d5c94f6b8621d23d840b1646e5f4d8c271eefc366b198eb62246",
   "valid_zip_bytes": 145452,

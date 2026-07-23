@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - agent/oyen-2d-stages-1-7
+      - fix/oyen-v06-cpu-render-on-zerogpu
     paths:
       - "hf_space/**"
       - "tests/test_oyen_2d*.py"
       - ".github/workflows/validate-oyen-v02.yml"
+      - ".github/workflows/deploy-huggingface.yml"
   pull_request:
     branches:
       - main
@@ -47,7 +49,7 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" \
-            -d '{"state":"pending","context":"oyen-v06/validate","description":"Validating Oyen 2D stages 1-7 and Blender render"}'
+            -d '{"state":"pending","context":"oyen-v06/validate","description":"Validating CPU Blender render and ZeroGPU contract"}'
 
       - uses: actions/setup-python@v5
         with:
@@ -58,31 +60,61 @@ jobs:
       - name: Install Python test dependency
         run: python -m pip install --quiet "pillow>=10,<12"
 
-      - name: Validate Python, committed assets and Motion Director
+      - name: Validate source, assets and CPU-ZeroGPU contract
         run: |
-          set -o pipefail
+          set -euo pipefail
           {
             python -m py_compile \
               hf_space/app_v04.py \
+              hf_space/app_v06.py \
               hf_space/oyen_2d_asset_bundle.py \
               hf_space/oyen_2d_builder.py \
               hf_space/oyen_2d_director.py \
               hf_space/oyen_2d_runtime.py \
               tests/test_oyen_2d_director.py \
-              tests/test_oyen_2d_pipeline.py
+              tests/test_oyen_2d_pipeline.py \
+              tests/test_oyen_2d_cpu_zerogpu_contract.py
+
             PYTHONPATH=hf_space python -m unittest discover -s tests -p 'test_oyen_2d*.py' -v
+
             test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
             grep -q '^app_file: app_v04.py$' hf_space/README.md
             grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
-            grep -q 'Oyen Purba 2D Cutout Studio' hf_space/app_v04.py
+            grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v06.py
+            grep -q 'Oyen Purba 2D Cutout Studio' hf_space/app_v06.py
+            grep -q '^import spaces$' hf_space/app_v04.py
+            grep -q '@spaces.GPU(duration=_zerogpu_duration)' hf_space/app_v04.py
+            grep -q 'from app_v06 import demo' hf_space/app_v04.py
+            grep -q '^import spaces$' hf_space/app_v06.py
+            grep -q '@spaces.GPU(duration=1)' hf_space/app_v06.py
+            grep -q 'api_name="zerogpu_healthcheck"' hf_space/app_v06.py
+            grep -q 'api_name="render_mp4"' hf_space/app_v06.py
+            grep -q 'render_2d_job(job, OUTPUT_DIR, timeout=420)' hf_space/app_v06.py
             grep -qx 'blender' hf_space/packages.txt
             grep -qx 'ffmpeg' hf_space/packages.txt
             grep -qx 'libegl1' hf_space/packages.txt
-            grep -q '^import spaces$' hf_space/app_v04.py
-            grep -q '@spaces.GPU(duration=_zerogpu_duration)' hf_space/app_v04.py
+            grep -q '^spaces' hf_space/requirements.txt
             ! grep -q 'request_space_hardware' .github/workflows/deploy-huggingface.yml
             grep -q 'cancel-in-progress: false' .github/workflows/validate-oyen-v02.yml
             grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
+
+            python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          source = Path("hf_space/app_v06.py").read_text(encoding="utf-8")
+          tree = ast.parse(source)
+          functions = {
+              node.name: node
+              for node in ast.walk(tree)
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+          }
+          render = functions["create_animation_video"]
+          health = functions["zerogpu_healthcheck"]
+          assert not render.decorator_list, "CPU Blender callback must not request ZeroGPU"
+          assert health.decorator_list, "ZeroGPU healthcheck must remain decorated"
+          print("OYEN_CPU_ZEROGPU_CONTRACT_OK")
+          PY
           } 2>&1 | tee /tmp/oyen-v06-unit.log
 
       - name: Install Blender quietly
@@ -93,7 +125,7 @@ jobs:
 
       - name: Render a real Oyen 2D Blender smoke test
         run: |
-          set -o pipefail
+          set -euo pipefail
           PYTHONPATH=hf_space python - <<'PY' 2>&1 | tee /tmp/oyen-v06-render.log
           import json
           from pathlib import Path
@@ -131,16 +163,32 @@ jobs:
           PY
 
       - name: Upload validation proof
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: oyen-v06-validation-proof
           path: |
+            /tmp/oyen-v06-unit.log
+            /tmp/oyen-v06-render.log
             /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_preview.mp4
             /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_preview.blend
             /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_qa_contact_sheet.jpg
             /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log
           retention-days: 3
           if-no-files-found: error
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oyen-v06-validation-failure
+          path: |
+            /tmp/oyen-v06-unit.log
+            /tmp/oyen-v06-render.log
+            /tmp/oyen-apt.log
+            /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log
+          retention-days: 1
+          if-no-files-found: warn
 
       - name: Publish successful validation status
         if: success()
@@ -152,7 +200,7 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" \
-            -d '{"state":"success","context":"oyen-v06/validate","description":"Oyen 2D stages 1-7 and real Blender render passed"}'
+            -d '{"state":"success","context":"oyen-v06/validate","description":"CPU Blender render and ZeroGPU contract passed"}'
 
       - name: Publish failed validation status
         if: failure()
@@ -160,14 +208,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "--- unit log ---"
-          tail -n 120 /tmp/oyen-v06-unit.log 2>/dev/null || true
+          tail -n 180 /tmp/oyen-v06-unit.log 2>/dev/null || true
           echo "--- render log ---"
-          tail -n 160 /tmp/oyen-v06-render.log 2>/dev/null || true
+          tail -n 180 /tmp/oyen-v06-render.log 2>/dev/null || true
           echo "--- Blender log ---"
-          tail -n 160 /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log 2>/dev/null || true
+          tail -n 180 /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log 2>/dev/null || true
           curl --fail-with-body -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" \
-            -d '{"state":"failure","context":"oyen-v06/validate","description":"Oyen 2D stages 1-7 validation failed"}'
+            -d '{"state":"failure","context":"oyen-v06/validate","description":"Oyen V0.6 CPU-ZeroGPU validation failed"}'

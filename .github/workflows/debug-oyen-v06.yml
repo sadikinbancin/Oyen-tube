@@ -9,6 +9,14 @@ on:
       - "hf_space/oyen_2d_*.json"
       - "hf_space/oyen_2d_asset_parts/**"
       - "tests/test_oyen_2d*.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/debug-oyen-v06.yml"
+      - "hf_space/oyen_2d_*.py"
+      - "hf_space/oyen_2d_*.json"
+      - "hf_space/oyen_2d_asset_parts/**"
+      - "tests/test_oyen_2d*.py"
   workflow_dispatch:
 
 permissions:

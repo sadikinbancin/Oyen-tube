@@ -1,0 +1,276 @@
+name: Deploy and Verify Oyen Purba 2D V0.6
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "hf_space/**"
+      - ".github/workflows/deploy-huggingface.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  statuses: write
+
+concurrency:
+  group: oyen-huggingface-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mark deployment pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl --fail-with-body -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying Oyen Purba 2D V0.6"}'
+      - name: Sync V0.6 to Hugging Face
+        id: deploy
+        continue-on-error: true
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -o pipefail
+          {
+            set -euo pipefail
+            test -n "$HF_TOKEN"
+            grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
+            grep -q 'Oyen Purba 2D Cutout Studio' hf_space/app_v04.py
+            grep -q '^app_file: app_v04.py$' hf_space/README.md
+            test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
+            test "$(find hf_space/oyen_2d_builder_parts -name '*.b64' | wc -l)" -eq 4
+            rm -rf /tmp/oyen-hf-space
+            git clone "https://lako123:${HF_TOKEN}@huggingface.co/spaces/lako123/Belajarh-ani" /tmp/oyen-hf-space
+            rsync --archive --delete --exclude '.git' hf_space/ /tmp/oyen-hf-space/
+            cd /tmp/oyen-hf-space
+            git lfs install --local
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            if git diff --cached --quiet; then
+              echo "Hugging Face Space already matches GitHub."
+            else
+              git commit -m "Deploy Oyen Purba 2D V0.6 from GitHub ${GITHUB_SHA::7}"
+              git push origin HEAD:main
+            fi
+          } 2>&1 | tee /tmp/oyen-deploy.log
+      - name: Wait for live V0.6 app
+        id: health
+        if: steps.deploy.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            for attempt in $(seq 1 140); do
+              code=$(curl --silent --location --max-time 20 \
+                --output /tmp/space-config.json \
+                --write-out "%{http_code}" \
+                "https://lako123-belajarh-ani.hf.space/config" || true)
+              if [ "$code" = 200 ] \
+                && grep -q 'render_mp4' /tmp/space-config.json \
+                && grep -q 'Oyen Purba 2D Cutout Studio' /tmp/space-config.json \
+                && grep -q 'Susun Motion 2D' /tmp/space-config.json \
+                && grep -q '2D Cutout Blender' /tmp/space-config.json; then
+                echo "Live Oyen Purba 2D V0.6 API is ready."
+                exit 0
+              fi
+              echo "Attempt ${attempt}/140: waiting for V0.6 (HTTP ${code})."
+              sleep 15
+            done
+            tail -c 8000 /tmp/space-config.json 2>/dev/null || true
+            exit 1
+          } 2>&1 | tee /tmp/oyen-health.log
+      - uses: actions/setup-python@v5
+        if: steps.health.outcome == 'success'
+        with:
+          python-version: "3.12"
+      - name: Install smoke-test client
+        if: steps.health.outcome == 'success'
+        run: python -m pip install --quiet gradio_client "pillow>=10,<12"
+      - name: Render and verify live Stages 1-7
+        id: smoke
+        if: steps.health.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            python - <<'PY'
+          from __future__ import annotations
+          import json, shutil
+          from pathlib import Path
+          from typing import Any, Iterable
+          from gradio_client import Client
+          from PIL import Image, ImageStat
+
+          def walk(value: Any) -> Iterable[Path]:
+              if value is None:
+                  return
+              if isinstance(value, (str, Path)):
+                  path = Path(value)
+                  if path.is_file():
+                      yield path
+                  return
+              if isinstance(value, dict):
+                  for item in value.values():
+                      yield from walk(item)
+                  return
+              if isinstance(value, (list, tuple)):
+                  for item in value:
+                      yield from walk(item)
+
+          prompt = "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, lalu tersenyum dan mengibaskan ekornya."
+          client = Client("https://lako123-belajarh-ani.hf.space", verbose=True)
+          result = client.predict(
+              prompt,
+              "2D Cutout Blender",
+              "Oyen Purba Brand Sheet",
+              6,
+              "9:16",
+              12,
+              "360p cepat",
+              False,
+              api_name="/render_mp4",
+          )
+          print("SMOKE_RESULT:", result)
+          if not isinstance(result, (list, tuple)) or len(result) < 8:
+              raise RuntimeError(f"Unexpected Gradio result: {result}")
+          status = str(result[0])
+          if "Oyen Purba 2D V1 selesai — Tahap 1–7 terverifikasi" not in status:
+              raise RuntimeError(f"Wrong live status: {status}")
+          job = json.loads(str(result[3]))
+          if job.get("schema_version") != "oyen.animation-job.v6" or job.get("app_version") != "0.6.0":
+              raise RuntimeError(f"Wrong live schema/version: {job.get('schema_version')} {job.get('app_version')}")
+          stages = job["stage_audit"]["stages"]
+          if len(stages) != 7 or not all(item["status"] == "implemented" for item in stages.values()):
+              raise RuntimeError("Stage audit is incomplete")
+          character = job["project"]["main_character"]
+          if character["bone_count"] < 25 or character["action_count"] != 7 or character["active_rig_layers"] < 35:
+              raise RuntimeError(f"Invalid 2D character counts: {character}")
+          actions = [clip["action"] for clip in job["motion_plan"]["clips"]]
+          for required in ("OYEN_WALK_IN_PLACE", "OYEN_HEAD_TURN", "OYEN_WAVE", "OYEN_TAIL_WAG"):
+              if required not in actions:
+                  raise RuntimeError(f"Missing requested Action {required}: {actions}")
+
+          paths = list(walk(result))
+          videos = [p for p in paths if p.suffix.lower() == ".mp4"]
+          blends = [p for p in paths if p.suffix.lower() == ".blend"]
+          sheets = [p for p in paths if p.suffix.lower() in {".jpg", ".jpeg"}]
+          logs = [p for p in paths if p.suffix.lower() == ".log"]
+          if not videos or not blends or not sheets or not logs:
+              raise RuntimeError(f"Missing required live outputs: {paths}")
+          video = max(videos, key=lambda p: p.stat().st_size)
+          blend = max(blends, key=lambda p: p.stat().st_size)
+          sheet = max(sheets, key=lambda p: p.stat().st_size)
+          log = max(logs, key=lambda p: p.stat().st_size)
+          if video.stat().st_size < 2048 or blend.stat().st_size < 10000 or sheet.stat().st_size < 2000:
+              raise RuntimeError("One or more live outputs are too small")
+          image = Image.open(sheet).convert("RGB")
+          if max(ImageStat.Stat(image).var) < 40:
+              raise RuntimeError("QA contact sheet appears blank")
+          log_text = log.read_text(encoding="utf-8", errors="replace")
+          for marker in (
+              "OYEN_2D_ASSETS count=",
+              "OYEN_2D_BONES count=",
+              "OYEN_2D_ACTIONS count=7",
+              "OYEN_2D_NLA strips=",
+              "OYEN_2D_QA frames=5",
+              "OYEN_2D_LIBRARY_ONLY true",
+              "OYEN_2D_RENDER_SUCCESS",
+          ):
+              if marker not in log_text:
+                  raise RuntimeError(f"Missing Blender proof marker: {marker}")
+          targets = {
+              "/tmp/oyen-purba-2d-v06.mp4": video,
+              "/tmp/oyen-purba-2d-v06.blend": blend,
+              "/tmp/oyen-purba-2d-v06-contact-sheet.jpg": sheet,
+              "/tmp/oyen-purba-2d-v06.log": log,
+          }
+          for target, source in targets.items():
+              shutil.copy2(source, target)
+          print(
+              "OYEN_2D_V06_VERIFIED "
+              f"layers={character['active_rig_layers']} bones={character['bone_count']} "
+              f"actions={actions} mp4_bytes={video.stat().st_size} "
+              f"blend_bytes={blend.stat().st_size} contact_sheet_bytes={sheet.stat().st_size}"
+          )
+          PY
+          } 2>&1 | tee /tmp/oyen-smoke.log
+      - name: Upload verified outputs
+        if: steps.smoke.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oyen-purba-2d-v06-verified
+          path: |
+            /tmp/oyen-purba-2d-v06.mp4
+            /tmp/oyen-purba-2d-v06.blend
+            /tmp/oyen-purba-2d-v06-contact-sheet.jpg
+            /tmp/oyen-purba-2d-v06.log
+          retention-days: 3
+          if-no-files-found: error
+      - name: Publish deployment diagnostics
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY: ${{ steps.deploy.outcome }}
+          HEALTH: ${{ steps.health.outcome }}
+          SMOKE: ${{ steps.smoke.outcome }}
+        run: |
+          {
+            echo "# Oyen Purba 2D V0.6 deployment diagnostics"
+            echo
+            echo "- Source commit: \`${GITHUB_SHA}\`"
+            echo "- Deploy: \`${DEPLOY}\`"
+            echo "- Health: \`${HEALTH}\`"
+            echo "- Stages 1-7 render smoke: \`${SMOKE}\`"
+            echo
+            for file in /tmp/oyen-deploy.log /tmp/oyen-health.log /tmp/oyen-smoke.log; do
+              echo "## $(basename "$file")"
+              echo '```text'
+              [ -f "$file" ] && tail -c 28000 "$file" || echo "Step did not run."
+              echo '```'
+            done
+          } > /tmp/latest.md
+          rm -rf /tmp/deploy-diag
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/deploy-diag
+          cd /tmp/deploy-diag
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan diag-work
+          git rm -rf .
+          cp /tmp/latest.md latest.md
+          git add latest.md
+          git commit -m "v06 deploy diagnostics: ${GITHUB_SHA::7}"
+          git push --force origin HEAD:diagnostics
+      - name: Publish final status
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY: ${{ steps.deploy.outcome }}
+          HEALTH: ${{ steps.health.outcome }}
+          SMOKE: ${{ steps.smoke.outcome }}
+        run: |
+          if [ "$DEPLOY" = success ] && [ "$HEALTH" = success ] && [ "$SMOKE" = success ]; then
+            state=success
+            description="Oyen 2D stages 1-7, rig, actions, QA, blend and MP4 verified"
+          else
+            state=failure
+            description="Oyen 2D V0.6 deployment or live render verification failed"
+          fi
+          payload=$(printf '{"state":"%s","context":"huggingface-space/deploy","description":"%s","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}' "$state" "$description")
+          curl --fail-with-body -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload"
+      - name: Fail unless live outputs are verified
+        if: steps.deploy.outcome != 'success' || steps.health.outcome != 'success' || steps.smoke.outcome != 'success'
+        run: exit 1

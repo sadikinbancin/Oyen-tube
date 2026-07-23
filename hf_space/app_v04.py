@@ -365,4 +365,4 @@ mengarang karakter pengganti.
 
 
 if __name__ == "__main__":
-    demo.queue(default_concurrency_limit=1, max_size=4).launch()
+    demo.queue(default_concurrency_limit=1, max_size=4).launch(ssr_mode=False)

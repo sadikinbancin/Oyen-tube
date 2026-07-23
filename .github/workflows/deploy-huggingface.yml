@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "hf_space/**"
+      - "scripts/verify_live_oyen_v06.py"
       - ".github/workflows/deploy-huggingface.yml"
   workflow_dispatch:
 
@@ -47,6 +48,7 @@ jobs:
             test -f hf_space/app_v06.py
             test -f hf_space/oyen_2d_runtime.py
             test -f hf_space/requirements.txt
+            test -f scripts/verify_live_oyen_v06.py
             test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
             grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
             grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v06.py
@@ -57,6 +59,7 @@ jobs:
             grep -q '^app_file: app_v04.py$' hf_space/README.md
             grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
             ! grep -q 'request_space_hardware' .github/workflows/deploy-huggingface.yml
+            python -m py_compile scripts/verify_live_oyen_v06.py
             echo "OYEN_DEPLOY_SOURCE_OK"
           } 2>&1 | tee /tmp/oyen-source.log
 
@@ -163,124 +166,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -o pipefail
-          python - <<'PY' 2>&1 | tee /tmp/oyen-v06-live-smoke.log
-          import inspect
-          import json
-          import os
-          import shutil
-          from pathlib import Path
-
-          from gradio_client import Client
-          from PIL import Image, ImageStat
-
-          token = os.environ.get("HF_TOKEN", "")
-          if not token:
-              raise RuntimeError("HF_TOKEN is empty")
-
-          client_kwargs = {"verbose": True}
-          parameters = inspect.signature(Client).parameters
-          if "token" in parameters:
-              client_kwargs["token"] = token
-          elif "hf_token" in parameters:
-              client_kwargs["hf_token"] = token
-
-          client = Client(
-              "https://lako123-belajarh-ani.hf.space",
-              **client_kwargs,
-          )
-          probe = client.predict(api_name="/zerogpu_healthcheck")
-          if "OYEN_ZEROGPU_READY" not in str(probe):
-              raise RuntimeError(f"ZeroGPU compatibility probe failed: {probe}")
-
-          result = client.predict(
-              "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, lalu tersenyum dan mengibaskan ekornya.",
-              "2D Cutout Blender",
-              "Oyen Purba Brand Sheet",
-              3,
-              "9:16",
-              12,
-              "360p cepat",
-              False,
-              api_name="/render_mp4",
-          )
-          print("LIVE_RESULT", repr(result)[:30000])
-          if not isinstance(result, (list, tuple)) or len(result) < 8:
-              raise RuntimeError(f"Unexpected result: {result}")
-          if "Tahap 1–7 terverifikasi" not in str(result[0]):
-              raise RuntimeError(f"Render status failed: {result[0]}")
-
-          job = json.loads(str(result[3]))
-          character = job["project"]["main_character"]
-          if job.get("app_version") != "0.6.0":
-              raise RuntimeError(f"Wrong app version: {job.get('app_version')}")
-          if character["active_rig_layers"] < 35:
-              raise RuntimeError(f"Too few layers: {character}")
-          if character["bone_count"] < 25 or character["action_count"] != 7:
-              raise RuntimeError(f"Invalid rig counts: {character}")
-
-          def collect(value):
-              found = []
-              if isinstance(value, (str, Path)):
-                  path = Path(value)
-                  if path.is_file():
-                      found.append(path)
-              elif isinstance(value, dict):
-                  for item in value.values():
-                      found.extend(collect(item))
-              elif isinstance(value, (list, tuple)):
-                  for item in value:
-                      found.extend(collect(item))
-              else:
-                  candidate = getattr(value, "path", None) or getattr(value, "name", None)
-                  if candidate:
-                      found.extend(collect(candidate))
-              return found
-
-          paths = collect(result)
-          videos = [p for p in paths if p.suffix.lower() == ".mp4"]
-          blends = [p for p in paths if p.suffix.lower() == ".blend"]
-          sheets = [p for p in paths if p.suffix.lower() in {".jpg", ".jpeg"}]
-          logs = [p for p in paths if p.suffix.lower() == ".log"]
-          if not videos or not blends or not sheets or not logs:
-              raise RuntimeError(f"Missing outputs: {paths}")
-
-          video = max(videos, key=lambda p: p.stat().st_size)
-          blend = max(blends, key=lambda p: p.stat().st_size)
-          sheet = max(sheets, key=lambda p: p.stat().st_size)
-          log = max(logs, key=lambda p: p.stat().st_size)
-          if video.stat().st_size < 2048 or blend.stat().st_size < 10000:
-              raise RuntimeError("MP4 or blend is too small")
-          image = Image.open(sheet).convert("RGB")
-          if sheet.stat().st_size < 2000 or max(ImageStat.Stat(image).var) < 35:
-              raise RuntimeError("Contact sheet is blank or too small")
-
-          proof = log.read_text(encoding="utf-8", errors="replace")
-          for marker in (
-              "OYEN_2D_ASSETS count=",
-              "OYEN_2D_BONES count=",
-              "OYEN_2D_ACTIONS count=7",
-              "OYEN_2D_QA frames=5",
-              "OYEN_2D_LIBRARY_ONLY true",
-              "OYEN_2D_RENDER_SUCCESS",
-          ):
-              if marker not in proof:
-                  raise RuntimeError(f"Missing marker: {marker}")
-
-          for target, source in {
-              "/tmp/oyen-purba-2d-v06.mp4": video,
-              "/tmp/oyen-purba-2d-v06.blend": blend,
-              "/tmp/oyen-purba-2d-v06-contact-sheet.jpg": sheet,
-              "/tmp/oyen-purba-2d-v06.log": log,
-          }.items():
-              shutil.copy2(source, target)
-          print(
-              "OYEN_2D_V06_LIVE_RENDER_SUCCESS "
-              f"layers={character['active_rig_layers']} "
-              f"bones={character['bone_count']} "
-              f"mp4={video.stat().st_size} blend={blend.stat().st_size} "
-              f"sheet={sheet.stat().st_size}"
-          )
-          PY
+          python scripts/verify_live_oyen_v06.py 2>&1 | tee /tmp/oyen-v06-live-smoke.log
 
       - name: Upload verified live outputs
         if: steps.smoke.outcome == 'success'

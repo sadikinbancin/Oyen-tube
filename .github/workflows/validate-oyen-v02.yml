@@ -1,0 +1,98 @@
+name: Diagnose Current Oyen Main Deploy
+
+on:
+  push:
+    branches: [agent/probe-main-v06-current]
+    paths:
+      - ".github/workflows/validate-oyen-v02.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/validate-oyen-v02.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch current main runs and job steps
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          repo = "sadikinbancin/Oyen-tube"
+          sha = "569a37335724f82646e7d908eda8dad03c17e46c"
+
+          def get(url):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "User-Agent": "oyen-current-main-diagnostic",
+                      "Cache-Control": "no-cache",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          runs = get(
+              f"https://api.github.com/repos/{repo}/actions/runs?"
+              + urllib.parse.urlencode({"head_sha": sha, "per_page": 20})
+          ).get("workflow_runs", [])
+          output = {"sha": sha, "runs": []}
+          for run in runs:
+              jobs = get(
+                  f"https://api.github.com/repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100"
+              ).get("jobs", [])
+              output["runs"].append(
+                  {
+                      "id": run.get("id"),
+                      "name": run.get("name"),
+                      "status": run.get("status"),
+                      "conclusion": run.get("conclusion"),
+                      "run_number": run.get("run_number"),
+                      "jobs": [
+                          {
+                              "id": job.get("id"),
+                              "name": job.get("name"),
+                              "status": job.get("status"),
+                              "conclusion": job.get("conclusion"),
+                              "steps": [
+                                  {
+                                      "number": step.get("number"),
+                                      "name": step.get("name"),
+                                      "status": step.get("status"),
+                                      "conclusion": step.get("conclusion"),
+                                  }
+                                  for step in job.get("steps", [])
+                              ],
+                          }
+                          for job in jobs
+                      ],
+                  }
+              )
+
+          Path("/tmp/oyen-current-main-diagnostic.json").write_text(
+              json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(output, ensure_ascii=False, indent=2))
+          if not runs:
+              raise RuntimeError("No current main workflow runs found")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oyen-current-main-diagnostic
+          path: /tmp/oyen-current-main-diagnostic.json
+          retention-days: 1
+          if-no-files-found: error

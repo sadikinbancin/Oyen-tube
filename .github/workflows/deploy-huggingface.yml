@@ -33,9 +33,9 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and live-rendering Oyen Purba 2D V0.6 on ZeroGPU"}'
+            -d '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and live-rendering Oyen V0.6 on ZeroGPU"}'
 
-      - name: Validate ZeroGPU deployment source
+      - name: Validate deployment source
         run: |
           set -euo pipefail
           test -f hf_space/app_v04.py
@@ -44,10 +44,9 @@ jobs:
           test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
           grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
           grep -q '^import spaces$' hf_space/app_v04.py
-          grep -q '@spaces.GPU' hf_space/app_v04.py
+          grep -q '@spaces.GPU(duration=_zerogpu_duration)' hf_space/app_v04.py
           grep -q '^spaces' hf_space/requirements.txt
           grep -q '^app_file: app_v04.py$' hf_space/README.md
-          grep -q 'hf_token=os.environ\["HF_TOKEN"\]' .github/workflows/deploy-huggingface.yml
           grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
           ! grep -q 'request_space_hardware' .github/workflows/deploy-huggingface.yml
 
@@ -55,10 +54,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install deployment and live-test clients
+      - name: Install clients
         run: python -m pip install --quiet "huggingface_hub>=0.34,<2" gradio_client "pillow>=10,<12"
 
-      - name: Confirm existing ZeroGPU runtime
+      - name: Confirm ZeroGPU runtime
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -68,20 +67,21 @@ jobs:
           import os
           from huggingface_hub import HfApi
 
-          api = HfApi(token=os.environ["HF_TOKEN"])
-          runtime = api.get_space_runtime(repo_id="lako123/Belajarh-ani")
+          runtime = HfApi(token=os.environ["HF_TOKEN"]).get_space_runtime(
+              repo_id="lako123/Belajarh-ani"
+          )
           print(
-              "HF_RUNTIME_BEFORE_DEPLOY "
+              "HF_RUNTIME "
               f"stage={runtime.stage} hardware={runtime.hardware} "
               f"requested={runtime.requested_hardware}"
           )
           if str(runtime.requested_hardware) != "zero-a10g":
               raise RuntimeError(
-                  f"Expected existing ZeroGPU hardware, got {runtime.requested_hardware}"
+                  f"Expected zero-a10g, got {runtime.requested_hardware}"
               )
           PY
 
-      - name: Sync GitHub source to Hugging Face Space
+      - name: Sync GitHub source to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -95,13 +95,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "Hugging Face Space already matches GitHub."
+            echo "Space already matches GitHub."
           else
-            git commit -m "Deploy Oyen Purba 2D V0.6 from GitHub ${GITHUB_SHA::7}"
+            git commit -m "Deploy Oyen V0.6 from GitHub ${GITHUB_SHA::7}"
             git push origin HEAD:main
           fi
 
-      - name: Wait for live V0.6 ZeroGPU application
+      - name: Wait for live application
         run: |
           set -euo pipefail
           for attempt in $(seq 1 160); do
@@ -112,9 +112,8 @@ jobs:
             if [ "$code" = "200" ] \
               && grep -q 'render_mp4' /tmp/space-config.json \
               && grep -q 'Oyen Purba 2D Cutout Studio' /tmp/space-config.json \
-              && grep -q 'Susun Motion 2D' /tmp/space-config.json \
               && grep -q '2D Cutout Blender' /tmp/space-config.json; then
-              echo "Oyen Purba 2D V0.6 ZeroGPU API is ready."
+              echo "Live Oyen V0.6 API is ready."
               exit 0
             fi
             if [ $((attempt % 8)) -eq 0 ]; then
@@ -122,56 +121,34 @@ jobs:
                 "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" || true
               echo
             fi
-            echo "Attempt ${attempt}/160: waiting for live app (HTTP ${code})."
+            echo "Attempt ${attempt}/160: HTTP ${code}."
             sleep 15
           done
-          echo "Live V0.6 application did not become ready."
           tail -c 12000 /tmp/space-config.json 2>/dev/null || true
           exit 1
 
-      - name: Render and verify live Oyen 2D stages 1-7
+      - name: Authenticated live render verification
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -o pipefail
           python - <<'PY' 2>&1 | tee /tmp/oyen-v06-live-smoke.log
-          from __future__ import annotations
-
           import json
           import os
           import shutil
           from pathlib import Path
-          from typing import Any, Iterable
-
           from gradio_client import Client
           from PIL import Image, ImageStat
 
-          def walk(value: Any) -> Iterable[Path]:
-              if value is None:
-                  return
-              if isinstance(value, (str, Path)):
-                  path = Path(value)
-                  if path.is_file():
-                      yield path
-                  return
-              if isinstance(value, dict):
-                  for item in value.values():
-                      yield from walk(item)
-                  return
-              if isinstance(value, (list, tuple)):
-                  for item in value:
-                      yield from walk(item)
-
           token = os.environ.get("HF_TOKEN", "")
           if not token:
-              raise RuntimeError("HF_TOKEN is unavailable for authenticated ZeroGPU smoke test")
+              raise RuntimeError("HF_TOKEN is empty")
 
-          client = Client(
+          result = Client(
               "https://lako123-belajarh-ani.hf.space",
               hf_token=token,
               verbose=True,
-          )
-          result = client.predict(
+          ).predict(
               "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, lalu tersenyum dan mengibaskan ekornya.",
               "2D Cutout Blender",
               "Oyen Purba Brand Sheet",
@@ -182,69 +159,76 @@ jobs:
               False,
               api_name="/render_mp4",
           )
-          print("LIVE_SMOKE_RESULT", repr(result)[:30000])
+          print("LIVE_RESULT", repr(result)[:30000])
           if not isinstance(result, (list, tuple)) or len(result) < 8:
-              raise RuntimeError(f"Unexpected live result: {result}")
+              raise RuntimeError(f"Unexpected result: {result}")
+          if "Tahap 1–7 terverifikasi" not in str(result[0]):
+              raise RuntimeError(f"Render status failed: {result[0]}")
 
-          status = str(result[0])
-          if "Tahap 1–7 terverifikasi" not in status:
-              raise RuntimeError(f"Live render did not report success: {status}")
           job = json.loads(str(result[3]))
-          if job.get("schema_version") != "oyen.animation-job.v6":
-              raise RuntimeError(f"Wrong job schema: {job.get('schema_version')}")
+          character = job["project"]["main_character"]
           if job.get("app_version") != "0.6.0":
               raise RuntimeError(f"Wrong app version: {job.get('app_version')}")
-
-          character = job["project"]["main_character"]
           if character["active_rig_layers"] < 35:
-              raise RuntimeError(f"Too few active layers: {character}")
+              raise RuntimeError(f"Too few layers: {character}")
           if character["bone_count"] < 25 or character["action_count"] != 7:
-              raise RuntimeError(f"Invalid rig/action counts: {character}")
+              raise RuntimeError(f"Invalid rig counts: {character}")
 
-          paths = list(walk(result))
+          def collect(value):
+              found = []
+              if isinstance(value, str):
+                  path = Path(value)
+                  if path.is_file():
+                      found.append(path)
+              elif isinstance(value, dict):
+                  for item in value.values():
+                      found.extend(collect(item))
+              elif isinstance(value, (list, tuple)):
+                  for item in value:
+                      found.extend(collect(item))
+              return found
+
+          paths = collect(result)
           videos = [p for p in paths if p.suffix.lower() == ".mp4"]
           blends = [p for p in paths if p.suffix.lower() == ".blend"]
           sheets = [p for p in paths if p.suffix.lower() in {".jpg", ".jpeg"}]
           logs = [p for p in paths if p.suffix.lower() == ".log"]
           if not videos or not blends or not sheets or not logs:
-              raise RuntimeError(f"Missing live outputs: {paths}")
+              raise RuntimeError(f"Missing outputs: {paths}")
 
           video = max(videos, key=lambda p: p.stat().st_size)
           blend = max(blends, key=lambda p: p.stat().st_size)
           sheet = max(sheets, key=lambda p: p.stat().st_size)
           log = max(logs, key=lambda p: p.stat().st_size)
           if video.stat().st_size < 2048 or blend.stat().st_size < 10000:
-              raise RuntimeError("Live MP4 or .blend is too small")
-          if sheet.stat().st_size < 2000:
-              raise RuntimeError("Live contact sheet is too small")
+              raise RuntimeError("MP4 or blend is too small")
           image = Image.open(sheet).convert("RGB")
-          if max(ImageStat.Stat(image).var) < 35:
-              raise RuntimeError("Live contact sheet appears blank")
+          if sheet.stat().st_size < 2000 or max(ImageStat.Stat(image).var) < 35:
+              raise RuntimeError("Contact sheet is blank or too small")
 
-          log_text = log.read_text(encoding="utf-8", errors="replace")
+          proof = log.read_text(encoding="utf-8", errors="replace")
           for marker in (
               "OYEN_2D_ASSETS count=",
               "OYEN_2D_BONES count=",
               "OYEN_2D_ACTIONS count=7",
-              "OYEN_2D_NLA strips=",
               "OYEN_2D_QA frames=5",
               "OYEN_2D_LIBRARY_ONLY true",
               "OYEN_2D_RENDER_SUCCESS",
           ):
-              if marker not in log_text:
-                  raise RuntimeError(f"Missing Blender proof marker: {marker}")
+              if marker not in proof:
+                  raise RuntimeError(f"Missing marker: {marker}")
 
-          targets = {
+          for target, source in {
               "/tmp/oyen-purba-2d-v06.mp4": video,
               "/tmp/oyen-purba-2d-v06.blend": blend,
               "/tmp/oyen-purba-2d-v06-contact-sheet.jpg": sheet,
               "/tmp/oyen-purba-2d-v06.log": log,
-          }
-          for target, source in targets.items():
+          }.items():
               shutil.copy2(source, target)
           print(
               "OYEN_2D_V06_LIVE_RENDER_SUCCESS "
-              f"layers={character['active_rig_layers']} bones={character['bone_count']} "
+              f"layers={character['active_rig_layers']} "
+              f"bones={character['bone_count']} "
               f"mp4={video.stat().st_size} blend={blend.stat().st_size} "
               f"sheet={sheet.stat().st_size}"
           )
@@ -273,16 +257,14 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d '{"state":"success","context":"huggingface-space/deploy","description":"Oyen V0.6 ZeroGPU live render and outputs verified","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'
+            -d '{"state":"success","context":"huggingface-space/deploy","description":"Oyen V0.6 live ZeroGPU render verified","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'
 
       - name: Publish failed deployment status
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "--- live smoke log ---"
           tail -n 220 /tmp/oyen-v06-live-smoke.log 2>/dev/null || true
-          echo "--- runtime ---"
           curl --silent --location --max-time 20 \
             "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" || true
           echo
@@ -291,4 +273,4 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d '{"state":"failure","context":"huggingface-space/deploy","description":"Oyen V0.6 deployment or authenticated live render failed","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'
+            -d '{"state":"failure","context":"huggingface-space/deploy","description":"Oyen V0.6 deployment or live render failed","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'

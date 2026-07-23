@@ -78,8 +78,11 @@ jobs:
             grep -qx 'blender' hf_space/packages.txt
             grep -qx 'ffmpeg' hf_space/packages.txt
             grep -qx 'libegl1' hf_space/packages.txt
+            grep -q '^import spaces$' hf_space/app_v04.py
+            grep -q '@spaces.GPU(duration=_zerogpu_duration)' hf_space/app_v04.py
+            ! grep -q 'request_space_hardware' .github/workflows/deploy-huggingface.yml
             grep -q 'cancel-in-progress: false' .github/workflows/validate-oyen-v02.yml
-            grep -q 'hardware="cpu-basic"' .github/workflows/deploy-huggingface.yml
+            grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
           } 2>&1 | tee /tmp/oyen-v06-unit.log
 
       - name: Install Blender quietly

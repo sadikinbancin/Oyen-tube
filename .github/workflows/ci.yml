@@ -2,9 +2,22 @@ name: CI
 
 on:
   push:
-    branches: ["*"]
+    branches: [main, master]
     tags: ["v*"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "webapp/**"
+      - "pyproject.toml"
+      - "uv.lock"
   pull_request:
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "webapp/**"
+      - "pyproject.toml"
+      - "uv.lock"
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
@@ -15,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-        with: { python-version: "3.12" }
+        with: {python-version: "3.12"}
       - run: uv sync --group dev
       - run: uv run ruff check src/
 
@@ -24,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-        with: { python-version: "3.12" }
+        with: {python-version: "3.12"}
       - run: uv sync --group dev
       - run: uv run pytest tests/ -q
 
@@ -33,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with: {node-version: "20"}
       - working-directory: webapp/frontend
         run: npm ci
       - name: TypeScript check

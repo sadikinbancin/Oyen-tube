@@ -3,6 +3,7 @@ from __future__ import annotations
 import spaces
 
 APP_VERSION = "0.6.0"
+APP_TITLE = "Oyen Purba 2D Cutout Studio"
 
 
 def _zerogpu_duration(*_args, **_kwargs) -> int:

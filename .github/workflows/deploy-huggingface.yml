@@ -35,10 +35,11 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and live-rendering Oyen Purba 2D V0.6"}'
+            -d '{"state":"pending","context":"huggingface-space/deploy","description":"Deploying and live-rendering Oyen Purba 2D V0.6 on ZeroGPU"}'
 
-      - name: Validate deployment source
+      - name: Validate ZeroGPU deployment source
         run: |
+          set -euo pipefail
           test -f hf_space/app_v04.py
           test -f hf_space/oyen_2d_asset_bundle.py
           test -f hf_space/oyen_2d_builder.py
@@ -50,59 +51,28 @@ jobs:
           grep -q '^app_file: app_v04.py$' hf_space/README.md
           grep -q 'Oyen Purba 2D Cutout Studio' hf_space/README.md
           grep -qx 'blender' hf_space/packages.txt
-          grep -q 'hardware="cpu-basic"' .github/workflows/deploy-huggingface.yml
+          grep -q '^import spaces$' hf_space/app_v04.py
+          grep -q '@spaces.GPU(duration=_zerogpu_duration)' hf_space/app_v04.py
+          grep -q 'def create_animation_video(' hf_space/app_v04.py
+          grep -q 'api_name="render_mp4"' hf_space/app_v04.py
+          ! grep -q 'request_space_hardware' .github/workflows/deploy-huggingface.yml
           grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install deployment and live-test clients
-        run: |
-          python -m pip install --quiet "huggingface_hub>=0.34,<2" gradio_client "pillow>=10,<12"
+      - name: Install live-test client
+        run: python -m pip install --quiet gradio_client "pillow>=10,<12"
 
-      - name: Recover Hugging Face Space on CPU Basic
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - name: Confirm Hugging Face Space is configured for ZeroGPU
         run: |
           set -euo pipefail
-          test -n "$HF_TOKEN"
-          python - <<'PY'
-          import os
-          import time
-          from huggingface_hub import HfApi
-
-          repo_id = "lako123/Belajarh-ani"
-          api = HfApi(token=os.environ["HF_TOKEN"])
-          runtime = api.get_space_runtime(repo_id=repo_id)
-          print(
-              "HF_RUNTIME_BEFORE "
-              f"stage={runtime.stage} hardware={runtime.hardware} "
-              f"requested={runtime.requested_hardware}"
-          )
-
-          if str(runtime.requested_hardware) != "cpu-basic":
-              api.request_space_hardware(repo_id=repo_id, hardware="cpu-basic")
-              print("HF_HARDWARE_REQUESTED cpu-basic")
-              time.sleep(3)
-
-          runtime = api.get_space_runtime(repo_id=repo_id)
-          if str(runtime.stage) == "RUNTIME_ERROR":
-              api.restart_space(repo_id=repo_id)
-              print("HF_SPACE_RESTART_REQUESTED")
-              time.sleep(3)
-
-          runtime = api.get_space_runtime(repo_id=repo_id)
-          print(
-              "HF_RUNTIME_AFTER "
-              f"stage={runtime.stage} hardware={runtime.hardware} "
-              f"requested={runtime.requested_hardware}"
-          )
-          if str(runtime.requested_hardware) != "cpu-basic":
-              raise RuntimeError(
-                  f"Space did not accept cpu-basic request: {runtime.requested_hardware}"
-              )
-          PY
+          curl --fail --silent --location \
+            "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" \
+            -o /tmp/hf-runtime-before.json
+          cat /tmp/hf-runtime-before.json
+          grep -q 'zero-a10g' /tmp/hf-runtime-before.json
 
       - name: Sync GitHub source to Hugging Face Space
         env:
@@ -120,24 +90,32 @@ jobs:
           if git diff --cached --quiet; then
             echo "Hugging Face Space already matches GitHub."
           else
-            git commit -m "Deploy Oyen Purba 2D V0.6 from GitHub ${GITHUB_SHA::7}"
+            git commit -m "Deploy ZeroGPU-compatible Oyen V0.6 from GitHub ${GITHUB_SHA::7}"
             git push origin HEAD:main
           fi
 
-      - name: Wait for the actual V0.6 application
+      - name: Wait for the actual V0.6 ZeroGPU application
         run: |
           set -euo pipefail
           for attempt in $(seq 1 160); do
             code=$(curl --silent --location --max-time 20 \
               --output /tmp/space-config.json \
               --write-out "%{http_code}" \
-              "https://lako123-belajarh-ani.hf.space/config" || true)
+              "https://lako123-belajarh-ani.hf.space/config?sha=${GITHUB_SHA::12}" || true)
             if [ "$code" = "200" ] \
               && grep -q 'render_mp4' /tmp/space-config.json \
               && grep -q 'Oyen Purba 2D Cutout Studio' /tmp/space-config.json \
               && grep -q 'Susun Motion 2D' /tmp/space-config.json \
               && grep -q '2D Cutout Blender' /tmp/space-config.json; then
-              echo "Oyen Purba 2D V0.6 live API is ready."
+              echo "Oyen Purba 2D V0.6 ZeroGPU API is ready."
+              curl --fail --silent --location \
+                "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" \
+                -o /tmp/hf-runtime-ready.json
+              cat /tmp/hf-runtime-ready.json
+              if grep -q 'RUNTIME_ERROR' /tmp/hf-runtime-ready.json; then
+                echo "Space config answered but runtime still reports RUNTIME_ERROR."
+                exit 1
+              fi
               exit 0
             fi
             if [ $((attempt % 8)) -eq 0 ]; then
@@ -146,11 +124,13 @@ jobs:
                 "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" || true
               echo
             fi
-            echo "Attempt ${attempt}/160: waiting for V0.6 (HTTP ${code})."
+            echo "Attempt ${attempt}/160: waiting for V0.6 ZeroGPU (HTTP ${code})."
             sleep 15
           done
-          echo "The live V0.6 application did not become ready."
+          echo "The live V0.6 ZeroGPU application did not become ready."
           tail -c 12000 /tmp/space-config.json 2>/dev/null || true
+          curl --silent --location \
+            "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" || true
           exit 1
 
       - name: Render and verify live Oyen 2D stages 1-7
@@ -210,7 +190,9 @@ jobs:
           if job.get("app_version") != "0.6.0":
               raise RuntimeError(f"Wrong app version: {job.get('app_version')}")
           stages = job["stage_audit"]["stages"]
-          if len(stages) != 7 or not all(item["status"] == "implemented" for item in stages.values()):
+          if len(stages) != 7 or not all(
+              item["status"] == "implemented" for item in stages.values()
+          ):
               raise RuntimeError("Stage 1-7 audit is incomplete")
           character = job["project"]["main_character"]
           if character["active_rig_layers"] < 35:
@@ -285,6 +267,8 @@ jobs:
             /tmp/oyen-purba-2d-v06.blend
             /tmp/oyen-purba-2d-v06-contact-sheet.jpg
             /tmp/oyen-purba-2d-v06.log
+            /tmp/hf-runtime-before.json
+            /tmp/hf-runtime-ready.json
           retention-days: 3
           if-no-files-found: error
 
@@ -298,7 +282,7 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d '{"state":"success","context":"huggingface-space/deploy","description":"Oyen 2D stages 1-7 live render, blend and MP4 verified","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'
+            -d '{"state":"success","context":"huggingface-space/deploy","description":"Oyen ZeroGPU live render, blend and MP4 verified","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'
 
       - name: Publish failed deployment status
         if: failure()
@@ -310,4 +294,4 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d '{"state":"failure","context":"huggingface-space/deploy","description":"Oyen 2D V0.6 deployment or live render verification failed","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'
+            -d '{"state":"failure","context":"huggingface-space/deploy","description":"Oyen V0.6 ZeroGPU deployment or live render failed","target_url":"https://huggingface.co/spaces/lako123/Belajarh-ani"}'

@@ -8,7 +8,7 @@ import urllib.request
 from typing import Any
 
 
-MAIN_SHA = "bff849231851e625e80d16d8b16b4bac4ebda930"
+MAIN_SHA = "495c8c06acba13e338153eac668344d63edb5838"
 REPO = "sadikinbancin/Oyen-tube"
 SPACE_REPO = "lako123/Belajarh-ani"
 SPACE_BASE = "https://lako123-belajarh-ani.hf.space"
@@ -38,7 +38,7 @@ def fetch_json(url: str) -> tuple[int, Any]:
         return 0, {"error": f"{type(exc).__name__}: {exc}"}
 
 
-def compact(value: Any, limit: int = 16000) -> str:
+def compact(value: Any, limit: int = 24000) -> str:
     text = json.dumps(value, ensure_ascii=False, default=str)
     return text[:limit]
 
@@ -60,6 +60,7 @@ class OyenV06LiveStatusProbe(unittest.TestCase):
                 "status": item.get("status"),
                 "conclusion": item.get("conclusion"),
                 "run_number": item.get("run_number"),
+                "run_attempt": item.get("run_attempt"),
                 "created_at": item.get("created_at"),
                 "updated_at": item.get("updated_at"),
                 "html_url": item.get("html_url"),
@@ -67,6 +68,36 @@ class OyenV06LiveStatusProbe(unittest.TestCase):
             for item in runs
         ]
         print("OYEN_PROBE_MAIN_RUNS=" + compact(compact_runs))
+
+        for run in runs:
+            run_id = run.get("id")
+            jobs_url = f"https://api.github.com/repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100"
+            jobs_code, jobs_payload = fetch_json(jobs_url)
+            jobs = jobs_payload.get("jobs", []) if isinstance(jobs_payload, dict) else []
+            compact_jobs = [
+                {
+                    "id": job.get("id"),
+                    "name": job.get("name"),
+                    "status": job.get("status"),
+                    "conclusion": job.get("conclusion"),
+                    "started_at": job.get("started_at"),
+                    "completed_at": job.get("completed_at"),
+                    "steps": [
+                        {
+                            "name": step.get("name"),
+                            "status": step.get("status"),
+                            "conclusion": step.get("conclusion"),
+                            "number": step.get("number"),
+                        }
+                        for step in job.get("steps", [])
+                    ],
+                }
+                for job in jobs
+            ]
+            print(
+                f"OYEN_PROBE_RUN_{run_id}_JOBS_HTTP={jobs_code} "
+                + compact(compact_jobs)
+            )
 
         statuses_url = f"https://api.github.com/repos/{REPO}/commits/{MAIN_SHA}/statuses"
         statuses_code, statuses_payload = fetch_json(statuses_url)

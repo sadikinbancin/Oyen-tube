@@ -16,6 +16,7 @@ on:
       - "hf_space/**"
       - "tests/test_oyen_2d*.py"
       - ".github/workflows/validate-oyen-v02.yml"
+      - ".github/workflows/deploy-huggingface.yml"
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ permissions:
 
 concurrency:
   group: oyen-v06-validation-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   validate:
@@ -77,6 +78,8 @@ jobs:
             grep -qx 'blender' hf_space/packages.txt
             grep -qx 'ffmpeg' hf_space/packages.txt
             grep -qx 'libegl1' hf_space/packages.txt
+            grep -q 'cancel-in-progress: false' .github/workflows/validate-oyen-v02.yml
+            grep -q 'hardware="cpu-basic"' .github/workflows/deploy-huggingface.yml
           } 2>&1 | tee /tmp/oyen-v06-unit.log
 
       - name: Install Blender quietly

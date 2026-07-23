@@ -1,0 +1,207 @@
+name: Materialize and Test Oyen Purba 2D V0.6
+
+on:
+  push:
+    branches: [agent/oyen-2d-stages-1-7]
+    paths:
+      - "staging/oyen_v06/**"
+      - ".github/workflows/bootstrap-oyen-v06.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  statuses: write
+
+concurrency:
+  group: oyen-v06-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  materialize-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/oyen-2d-stages-1-7
+          fetch-depth: 0
+      - name: Materialize committed Stage 1-7 source blobs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+          import base64, json, os, shutil, urllib.request
+          from pathlib import Path
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          blobs = {
+              "hf_space/oyen_2d_asset_bundle.py": "e8d1c6db4d973a118fc02c0c536ae69cd1cbf962",
+              "hf_space/oyen_2d_builder.py": "006b2ab5bab0bbc59ffa508b991f84da28c0de3b",
+              "hf_space/oyen_2d_builder_parts/oyen_2d_builder.part01.b64": "b3b50464543b7ee9e8d629a8f6a6d1956d7f1091",
+              "hf_space/oyen_2d_builder_parts/oyen_2d_builder.part02.b64": "356bd6f240d14f8c218a8a11feab4132ef27375e",
+              "hf_space/oyen_2d_builder_parts/oyen_2d_builder.part03.b64": "012b2fb5f4ca64404d57bdf2cfac56765d6e1b19",
+              "hf_space/oyen_2d_builder_parts/oyen_2d_builder.part04.b64": "56fb7ff26d27351eb37a63185d987386bafc6930",
+              "hf_space/oyen_2d_runtime.py": "c4b18d1def8bca5e8f141d1e13ce4789b3e9446b",
+              "hf_space/oyen_2d_layer_manifest.json": "a54d5a133fa9a47c36a8cc5eb8cceb3a889e8d24",
+              "hf_space/oyen_2d_stage_audit.json": "86ad5a36cabd9ccb01710288e593105fc2b07624",
+              "tests/test_oyen_2d_pipeline.py": "761b4fb49fd4a74e44a24d71beb17f59606e2a13",
+          }
+          for target, sha in blobs.items():
+              url = f"https://api.github.com/repos/{repo}/git/blobs/{sha}"
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              raw = base64.b64decode(payload["content"])
+              path = Path(target)
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(raw)
+              print(f"materialized {target} bytes={len(raw)} sha={sha}")
+
+          replacements = {
+              "staging/oyen_v06/app_v04.py": "hf_space/app_v04.py",
+              "staging/oyen_v06/README.md": "hf_space/README.md",
+              "staging/oyen_v06/requirements.txt": "hf_space/requirements.txt",
+              "staging/oyen_v06/validate-oyen-v02.yml": ".github/workflows/validate-oyen-v02.yml",
+              "staging/oyen_v06/deploy-huggingface.yml": ".github/workflows/deploy-huggingface.yml",
+          }
+          for source, target in replacements.items():
+              path = Path(target)
+              path.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, target)
+              print(f"replaced {target}")
+          PY
+      - name: Commit complete Stage 1-7 implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add hf_space tests/test_oyen_2d_pipeline.py .github/workflows/validate-oyen-v02.yml .github/workflows/deploy-huggingface.yml
+          if git diff --cached --quiet; then
+            echo "No materialized changes were needed."
+          else
+            git commit -m "feat: implement Oyen Purba 2D stages 1-7"
+            git push origin HEAD:agent/oyen-2d-stages-1-7
+          fi
+          echo "NEW_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Mark materialized commit pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl --fail-with-body -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${NEW_SHA}" \
+            -d '{"state":"pending","context":"oyen-v06/validate","description":"Rendering complete Oyen 2D stages 1-7 smoke test"}'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Blender and test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender libegl1 ffmpeg
+          python -m pip install --quiet "pillow>=10,<12"
+      - name: Validate code, assets and real Blender render
+        id: verify
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            python -m py_compile \
+              hf_space/app_v04.py \
+              hf_space/oyen_2d_asset_bundle.py \
+              hf_space/oyen_2d_builder.py \
+              hf_space/oyen_2d_director.py \
+              hf_space/oyen_2d_runtime.py \
+              tests/test_oyen_2d_director.py \
+              tests/test_oyen_2d_pipeline.py
+            PYTHONPATH=hf_space python -m unittest discover -s tests -p 'test_oyen_2d*.py' -v
+            PYTHONPATH=hf_space python - <<'PY'
+          import json
+          from pathlib import Path
+          from oyen_2d_director import build_2d_motion_plan, compile_nla_timeline
+          from oyen_2d_runtime import render_2d_job
+
+          audit = json.loads(Path("hf_space/oyen_2d_stage_audit.json").read_text())
+          plan = build_2d_motion_plan(
+              "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, lalu tersenyum dan mengibaskan ekornya.",
+              4,
+              12,
+          )
+          timeline = compile_nla_timeline(plan)
+          job = {
+              "job_id": "bootstrap-v06-smoke",
+              "motion_plan": plan,
+              "compiled_timeline": timeline,
+              "stage_audit": audit,
+              "render": {"width": 360, "height": 640, "aspect_ratio": "9:16"},
+          }
+          result = render_2d_job(job, "/tmp/oyen-v06-bootstrap", timeout=300)
+          assert result["active_layer_count"] >= 35
+          assert result["bone_count"] >= 25
+          assert result["action_count"] == 7
+          assert result["qa_frame_count"] == 5
+          assert Path(result["video"]).stat().st_size >= 2048
+          assert Path(result["blend"]).stat().st_size >= 10000
+          assert Path(result["contact_sheet"]).stat().st_size >= 2000
+          print(
+              "OYEN_V06_BOOTSTRAP_RENDER_OK "
+              f"layers={result['active_layer_count']} bones={result['bone_count']} "
+              f"actions={result['action_count']} strips={result['nla_strip_count']} "
+              f"qa={result['qa_frame_count']} mp4={int(result['video_size_bytes'])} "
+              f"blend={int(result['blend_size_bytes'])}"
+          )
+          PY
+          } 2>&1 | tee /tmp/oyen-v06-bootstrap.log
+      - name: Publish materialized commit status
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTCOME: ${{ steps.verify.outcome }}
+        run: |
+          if [ "$OUTCOME" = success ]; then
+            state=success
+            description="Oyen 2D stages 1-7 passed tests and a real Blender render"
+          else
+            state=failure
+            description="Oyen 2D stages 1-7 bootstrap or Blender render failed"
+          fi
+          payload=$(printf '{"state":"%s","context":"oyen-v06/validate","description":"%s"}' "$state" "$description")
+          curl --fail-with-body -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${NEW_SHA}" \
+            -d "$payload"
+          {
+            echo "# Oyen Purba 2D V0.6 bootstrap diagnostics"
+            echo
+            echo "- Materialized commit: \`${NEW_SHA}\`"
+            echo "- Outcome: \`${OUTCOME}\`"
+            echo
+            echo '```text'
+            tail -c 30000 /tmp/oyen-v06-bootstrap.log 2>/dev/null || true
+            echo '```'
+          } > /tmp/latest-bootstrap.md
+          rm -rf /tmp/bootstrap-diag
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/bootstrap-diag
+          cd /tmp/bootstrap-diag
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan diag-work
+          git rm -rf .
+          cp /tmp/latest-bootstrap.md latest.md
+          git add latest.md
+          git commit -m "v06 bootstrap diagnostics: ${NEW_SHA::7}"
+          git push --force origin HEAD:v06-bootstrap-diagnostics
+      - name: Fail on bootstrap error
+        if: steps.verify.outcome != 'success'
+        run: exit 1

@@ -1,0 +1,51 @@
+name: Probe failed ZeroGPU deployment
+
+on:
+  push:
+    branches: [agent/probe-main-v06-status]
+    paths: [".github/workflows/probe-main-deploy-log.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download exact failed production deploy job log
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --location \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/89169312667/logs" \
+            -o /tmp/main-zero-deploy.log
+          echo "=== render failure markers ==="
+          grep -nE 'Traceback|ERROR|Error|Exception|failed|quota|GPU|Blender|LIVE_SMOKE_RESULT' \
+            /tmp/main-zero-deploy.log | tail -n 160 || true
+
+      - name: Capture current public Space state
+        run: |
+          curl --fail --silent --location \
+            "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" \
+            -o /tmp/hf-runtime.json
+          curl --silent --location --max-time 30 \
+            "https://lako123-belajarh-ani.hf.space/config" \
+            -o /tmp/hf-config.json || true
+          cat /tmp/hf-runtime.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oyen-v06-main-zero-deploy-log
+          path: |
+            /tmp/main-zero-deploy.log
+            /tmp/hf-runtime.json
+            /tmp/hf-config.json
+          retention-days: 1
+          if-no-files-found: error

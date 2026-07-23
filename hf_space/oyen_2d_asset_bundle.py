@@ -12,7 +12,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 PART_DIR = HERE / "oyen_2d_asset_parts"
 EXPECTED_PARTS = 12
-EXPECTED_SHA256 = "095f3bed0cb17e60a53fcfccf65574bb7dc601f423373769e83644e3fe7d3b49"
+EXPECTED_SHA256 = "a82540c49f52d5c94f6b8621d23d840b1646e5f4d8c271eefc366b198eb62246"
 MANIFEST_MEMBER = "oyen_2d_layer_manifest.json"
 
 

@@ -54,35 +54,41 @@ jobs:
           cache: pip
           cache-dependency-path: hf_space/requirements.txt
 
-      - name: Install Blender and test dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y blender ffmpeg libegl1
-          python -m pip install --upgrade pip
-          python -m pip install "pillow>=10,<12"
+      - name: Install Python test dependency
+        run: python -m pip install --quiet "pillow>=10,<12"
 
       - name: Validate Python, committed assets and Motion Director
         run: |
-          python -m py_compile \
-            hf_space/app_v04.py \
-            hf_space/oyen_2d_asset_bundle.py \
-            hf_space/oyen_2d_builder.py \
-            hf_space/oyen_2d_director.py \
-            hf_space/oyen_2d_runtime.py \
-            tests/test_oyen_2d_director.py \
-            tests/test_oyen_2d_pipeline.py
-          PYTHONPATH=hf_space python -m unittest discover -s tests -p 'test_oyen_2d*.py' -v
-          test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
-          grep -q '^app_file: app_v04.py$' hf_space/README.md
-          grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
-          grep -q 'Oyen Purba 2D Cutout Studio' hf_space/app_v04.py
-          grep -qx 'blender' hf_space/packages.txt
-          grep -qx 'ffmpeg' hf_space/packages.txt
-          grep -qx 'libegl1' hf_space/packages.txt
+          set -o pipefail
+          {
+            python -m py_compile \
+              hf_space/app_v04.py \
+              hf_space/oyen_2d_asset_bundle.py \
+              hf_space/oyen_2d_builder.py \
+              hf_space/oyen_2d_director.py \
+              hf_space/oyen_2d_runtime.py \
+              tests/test_oyen_2d_director.py \
+              tests/test_oyen_2d_pipeline.py
+            PYTHONPATH=hf_space python -m unittest discover -s tests -p 'test_oyen_2d*.py' -v
+            test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
+            grep -q '^app_file: app_v04.py$' hf_space/README.md
+            grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
+            grep -q 'Oyen Purba 2D Cutout Studio' hf_space/app_v04.py
+            grep -qx 'blender' hf_space/packages.txt
+            grep -qx 'ffmpeg' hf_space/packages.txt
+            grep -qx 'libegl1' hf_space/packages.txt
+          } 2>&1 | tee /tmp/oyen-v06-unit.log
+
+      - name: Install Blender quietly
+        run: |
+          sudo apt-get update -qq >/tmp/oyen-apt.log 2>&1
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq blender ffmpeg libegl1 >>/tmp/oyen-apt.log 2>&1
+          blender --version | head -1
 
       - name: Render a real Oyen 2D Blender smoke test
         run: |
-          PYTHONPATH=hf_space python - <<'PY'
+          set -o pipefail
+          PYTHONPATH=hf_space python - <<'PY' 2>&1 | tee /tmp/oyen-v06-render.log
           import json
           from pathlib import Path
           from oyen_2d_director import build_2d_motion_plan, compile_nla_timeline
@@ -147,6 +153,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "--- unit log ---"
+          tail -n 120 /tmp/oyen-v06-unit.log 2>/dev/null || true
+          echo "--- render log ---"
+          tail -n 160 /tmp/oyen-v06-render.log 2>/dev/null || true
+          echo "--- Blender log ---"
+          tail -n 160 /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log 2>/dev/null || true
           curl --fail-with-body -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GH_TOKEN}" \

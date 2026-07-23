@@ -8,6 +8,7 @@ on:
       - fix/oyen-v06-cpu-render-on-zerogpu
     paths:
       - "hf_space/**"
+      - "scripts/verify_live_oyen_v06.py"
       - "tests/test_oyen_2d*.py"
       - ".github/workflows/validate-oyen-v02.yml"
       - ".github/workflows/deploy-huggingface.yml"
@@ -16,6 +17,7 @@ on:
       - main
     paths:
       - "hf_space/**"
+      - "scripts/verify_live_oyen_v06.py"
       - "tests/test_oyen_2d*.py"
       - ".github/workflows/validate-oyen-v02.yml"
       - ".github/workflows/deploy-huggingface.yml"
@@ -26,7 +28,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: oyen-v06-validation-${{ github.ref }}
+  group: oyen-v06-validation-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -71,6 +73,7 @@ jobs:
               hf_space/oyen_2d_builder.py \
               hf_space/oyen_2d_director.py \
               hf_space/oyen_2d_runtime.py \
+              scripts/verify_live_oyen_v06.py \
               tests/test_oyen_2d_director.py \
               tests/test_oyen_2d_pipeline.py \
               tests/test_oyen_2d_cpu_zerogpu_contract.py
@@ -94,6 +97,7 @@ jobs:
             grep -qx 'ffmpeg' hf_space/packages.txt
             grep -qx 'libegl1' hf_space/packages.txt
             grep -q '^spaces' hf_space/requirements.txt
+            grep -q 'scripts/verify_live_oyen_v06.py' .github/workflows/deploy-huggingface.yml
             ! grep -q 'request_space_hardware' .github/workflows/deploy-huggingface.yml
             grep -q 'cancel-in-progress: false' .github/workflows/validate-oyen-v02.yml
             grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
@@ -113,7 +117,20 @@ jobs:
           health = functions["zerogpu_healthcheck"]
           assert not render.decorator_list, "CPU Blender callback must not request ZeroGPU"
           assert health.decorator_list, "ZeroGPU healthcheck must remain decorated"
+
+          verifier = Path("scripts/verify_live_oyen_v06.py").read_text(encoding="utf-8")
+          verifier_tree = ast.parse(verifier)
+          verifier_functions = {
+              node.name: node
+              for node in ast.walk(verifier_tree)
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+          }
+          assert "_collect_files" in verifier_functions
+          assert "main" in verifier_functions
+          assert "len(value) > 1024" in verifier
+          assert "except (OSError, ValueError)" in verifier
           print("OYEN_CPU_ZEROGPU_CONTRACT_OK")
+          print("OYEN_LIVE_OUTPUT_VERIFIER_OK")
           PY
           } 2>&1 | tee /tmp/oyen-v06-unit.log
 

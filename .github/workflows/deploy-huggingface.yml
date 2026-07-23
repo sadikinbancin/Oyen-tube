@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: oyen-huggingface-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy-and-test:
@@ -50,6 +50,59 @@ jobs:
           grep -q '^app_file: app_v04.py$' hf_space/README.md
           grep -q 'Oyen Purba 2D Cutout Studio' hf_space/README.md
           grep -qx 'blender' hf_space/packages.txt
+          grep -q 'hardware="cpu-basic"' .github/workflows/deploy-huggingface.yml
+          grep -q 'cancel-in-progress: false' .github/workflows/deploy-huggingface.yml
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deployment and live-test clients
+        run: |
+          python -m pip install --quiet "huggingface_hub>=0.34,<2" gradio_client "pillow>=10,<12"
+
+      - name: Recover Hugging Face Space on CPU Basic
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HF_TOKEN"
+          python - <<'PY'
+          import os
+          import time
+          from huggingface_hub import HfApi
+
+          repo_id = "lako123/Belajarh-ani"
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          runtime = api.get_space_runtime(repo_id=repo_id)
+          print(
+              "HF_RUNTIME_BEFORE "
+              f"stage={runtime.stage} hardware={runtime.hardware} "
+              f"requested={runtime.requested_hardware}"
+          )
+
+          if str(runtime.requested_hardware) != "cpu-basic":
+              api.request_space_hardware(repo_id=repo_id, hardware="cpu-basic")
+              print("HF_HARDWARE_REQUESTED cpu-basic")
+              time.sleep(3)
+
+          runtime = api.get_space_runtime(repo_id=repo_id)
+          if str(runtime.stage) == "RUNTIME_ERROR":
+              api.restart_space(repo_id=repo_id)
+              print("HF_SPACE_RESTART_REQUESTED")
+              time.sleep(3)
+
+          runtime = api.get_space_runtime(repo_id=repo_id)
+          print(
+              "HF_RUNTIME_AFTER "
+              f"stage={runtime.stage} hardware={runtime.hardware} "
+              f"requested={runtime.requested_hardware}"
+          )
+          if str(runtime.requested_hardware) != "cpu-basic":
+              raise RuntimeError(
+                  f"Space did not accept cpu-basic request: {runtime.requested_hardware}"
+              )
+          PY
 
       - name: Sync GitHub source to Hugging Face Space
         env:
@@ -87,19 +140,18 @@ jobs:
               echo "Oyen Purba 2D V0.6 live API is ready."
               exit 0
             fi
+            if [ $((attempt % 8)) -eq 0 ]; then
+              echo "--- Hugging Face runtime ---"
+              curl --silent --location --max-time 20 \
+                "https://huggingface.co/api/spaces/lako123/Belajarh-ani/runtime" || true
+              echo
+            fi
             echo "Attempt ${attempt}/160: waiting for V0.6 (HTTP ${code})."
             sleep 15
           done
           echo "The live V0.6 application did not become ready."
           tail -c 12000 /tmp/space-config.json 2>/dev/null || true
           exit 1
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install live smoke-test client
-        run: python -m pip install --quiet gradio_client "pillow>=10,<12"
 
       - name: Render and verify live Oyen 2D stages 1-7
         run: |

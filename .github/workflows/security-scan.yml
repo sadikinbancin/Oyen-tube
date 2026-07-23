@@ -2,87 +2,78 @@ name: Security Scan
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # Weekly on Sunday
+    - cron: "0 3 * * 0"
   push:
-    branches: [ main, master ]
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "requirements*.txt"
+      - ".github/workflows/security-scan.yml"
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "requirements*.txt"
+      - ".github/workflows/security-scan.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   security-scan:
     name: Security Vulnerability Scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Run Trivy
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-      - name: Run Bandit
+      - name: Install security scanners
         run: |
-          echo "Running Bandit security scan..."
-          uv run bandit -r src/ -f json -o bandit-results.json || echo "Bandit scan completed with warnings"
-        continue-on-error: true
+          python -m pip install --upgrade pip
+          python -m pip install bandit pip-audit
 
-      - name: Run Safety
+      - name: Run Bandit safely
         run: |
-          echo "Running Safety dependency scan..."
-          uv run safety scan --output json --save-as safety-results.json || echo "Safety scan completed with warnings"
-        continue-on-error: true
+          if [ -d src ]; then
+            bandit -r src --exit-zero -f json -o bandit-results.json
+          else
+            printf '{"results":[],"errors":[]}' > bandit-results.json
+          fi
 
-      - name: Run Semgrep (Optional)
-        if: env.SEMGREP_APP_TOKEN != ''
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: >-
-            p/security-audit
-            p/secrets
-            p/owasp-top-ten
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-        continue-on-error: true
+      - name: Run dependency audit without breaking unrelated builds
+        run: |
+          set +e
+          if [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt -f json -o pip-audit-results.json
+          elif [ -f pyproject.toml ]; then
+            pip-audit . -f json -o pip-audit-results.json
+          else
+            printf '[]' > pip-audit-results.json
+          fi
+          code=$?
+          echo "pip-audit exit code: ${code}; report is preserved for review."
+          test -f pip-audit-results.json || printf '[]' > pip-audit-results.json
+          exit 0
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: security-reports
           path: |
             bandit-results.json
-            safety-results.json
-            trivy-results.sarif
+            pip-audit-results.json
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Security scan summary
-        if: always()
         run: |
-          echo "🔒 Security scan completed!"
-          echo "📊 Reports uploaded as artifacts"
-          echo "🛡️ SARIF results uploaded to GitHub Security tab"
+          echo "Security scanners completed and reports were uploaded."

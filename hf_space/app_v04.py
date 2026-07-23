@@ -8,33 +8,19 @@ from pathlib import Path
 from typing import Any
 
 import gradio as gr
-import spaces
 
-from oyen_motion_ai import available_ai_provider, build_motion_plan
-from oyen_runtime import BlenderRuntimeError, render_job
+from oyen_2d_asset_bundle import load_embedded_manifest
+from oyen_2d_director import ACTION_LIBRARY, build_2d_motion_plan, compile_nla_timeline
+from oyen_2d_runtime import Oyen2DRuntimeError, render_2d_job
 
-APP_VERSION = "0.5.0"
-RIG_BONE_COUNT = 34
-OUTPUT_DIR = Path(tempfile.gettempdir()) / "oyen_animation_jobs"
+APP_VERSION = "0.6.0"
+HERE = Path(__file__).resolve().parent
+OUTPUT_DIR = Path(tempfile.gettempdir()) / "oyen_2d_animation_jobs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-STYLE_PRESETS: dict[str, dict[str, str]] = {
-    "Oyen Purba Official": {
-        "look": (
-            "short chubby orange tabby hero, large flat amber eyes, Sun Cream muzzle and belly, "
-            "small friendly fangs, fang necklace, prehistoric loincloth, continuous striped tail"
-        ),
-        "lighting": "warm cinematic cartoon studio lighting",
-    },
-    "Oyen Cartoon": {
-        "look": "friendly stylized cartoon, expressive face, clean rounded shapes",
-        "lighting": "soft cinematic daylight",
-    },
-    "Semi-realistic 3D": {
-        "look": "polished semi-realistic 3D animation with stable character identity",
-        "lighting": "cinematic three-point lighting",
-    },
-}
+STAGE_AUDIT = json.loads(
+    (HERE / "oyen_2d_stage_audit.json").read_text(encoding="utf-8")
+)
+LAYER_MANIFEST = load_embedded_manifest()
 
 RESOLUTIONS = {
     ("9:16", "360p cepat"): (360, 640),
@@ -55,88 +41,73 @@ def _create_job(
     fps: int,
     resolution: str,
     include_audio: bool,
-    motion_plan: dict[str, Any],
-    planner_provider: str,
-    planner_note: str,
 ) -> dict[str, Any]:
     width, height = RESOLUTIONS[(aspect_ratio, resolution)]
-    preset = STYLE_PRESETS[style]
-    job_id = f"oyen-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    motion_plan = build_2d_motion_plan(prompt, float(duration), int(fps))
+    compiled = compile_nla_timeline(motion_plan)
+    job_id = (
+        f"oyen-2d-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-"
+        f"{uuid.uuid4().hex[:6]}"
+    )
+    active_layers = [
+        item for item in LAYER_MANIFEST["layers"] if item.get("rig_enabled", True)
+    ]
     return {
-        "schema_version": "oyen.animation-job.v5",
+        "schema_version": "oyen.animation-job.v6",
         "app_version": APP_VERSION,
         "job_id": job_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "project": {
-            "name": "Oyen Purba AI Motion Studio",
+            "name": "Oyen Purba 2D Cutout Studio",
             "prompt": prompt,
             "mode": mode,
             "style": style,
-            "visual_direction": preset["look"],
-            "lighting": preset["lighting"],
             "main_character": {
                 "name": "Oyen Purba",
-                "rig_version": "Oyen Purba 3D Rig V1.1",
-                "armature": "Oyen_Purba_Rig",
-                "bone_count": RIG_BONE_COUNT,
-                "character_forward_axis": "-Y",
-                "controls": [
-                    "root/pelvis/spine/chest/neck/head/jaw",
-                    "arms, elbows, hands, thighs, knees and feet",
-                    "IK hands and feet with elbow/knee pole targets",
-                    "five-bone articulated tail",
-                ],
+                "version": "Oyen Purba 2D Test V1",
+                "source": "official brand sheet supplied by the project owner",
+                "layer_manifest": LAYER_MANIFEST["schema_version"],
+                "committed_png_count": 50,
+                "active_rig_layers": len(active_layers),
+                "bone_count": len(LAYER_MANIFEST["bones"]),
+                "action_count": len(ACTION_LIBRARY),
             },
         },
-        "ai_motion_director": {
-            "provider": planner_provider,
-            "note": planner_note,
-            "plan_embedded_in_blend": True,
-        },
+        "stage_audit": STAGE_AUDIT,
         "motion_plan": motion_plan,
+        "compiled_timeline": compiled,
         "timeline": {
             "duration_seconds": int(duration),
             "fps": int(fps),
-            "total_frames": int(duration * fps),
+            "total_frames": compiled["frame_end"],
         },
         "render": {
-            "engine": "BLENDER_WORKBENCH",
+            "engine": "BLENDER_EEVEE_2D_CUTOUT",
             "width": width,
             "height": height,
             "aspect_ratio": aspect_ratio,
-            "output_format": "FFMPEG_MPEG4",
+            "output_format": "FFMPEG_MPEG4_H264",
             "audio_enabled": bool(include_audio),
-            "preview_resolution_percentage": 100,
         },
         "worker": {
             "mode": "huggingface_blender_headless_cpu",
-            "expected_outputs": ["oyen_preview.blend", "oyen_preview.mp4"],
+            "expected_outputs": [
+                "oyen_2d_preview.mp4",
+                "oyen_2d_preview.blend",
+                "oyen_2d_qa_contact_sheet.jpg",
+                "animation_job.json",
+                "blender_2d.log",
+            ],
         },
-        "pipeline": [
-            "prompt_to_ai_motion_plan",
-            "validate_motion_json",
-            "build_oyen_purba_character",
-            "create_34_bone_armature_and_ik_controls",
-            "execute_prompt_specific_motion_clips",
-            "follow_character_camera",
-            "embed_motion_plan_inside_blend",
-            "save_rigged_blend",
-            "render_mp4",
-            "validate_armature_blend_and_video",
-        ],
-        "status": "ready_to_render_ai_directed_motion",
-        "notes": [
-            "Forward locomotion uses world -Y; X is reserved for left/right movement.",
-            "The AI does not generate unsafe arbitrary Blender Python. It selects validated motion clips.",
-            "Without an API key, a local Indonesian prompt parser remains available.",
-            "Rig V2 will add unified retopology, deformation weights and facial shape keys.",
-        ],
+        "quality_gate": {
+            "code_validation_required": True,
+            "asset_pack_validation_required": True,
+            "five_qa_frames_required": True,
+            "contact_sheet_required": True,
+            "visual_review_required": True,
+        },
+        "status": "ready_to_render_2d_stage_1_to_7",
     }
-
-
-@spaces.GPU(duration=1)
-def _zerogpu_registration() -> str:
-    return "ZeroGPU registered"
 
 
 def create_animation_video(
@@ -148,20 +119,20 @@ def create_animation_video(
     fps: int,
     resolution: str,
     include_audio: bool,
-) -> tuple[str, str | None, str | None, str, str | None, str | None, str | None]:
+):
     clean_prompt = (prompt or "").strip()
     if len(clean_prompt) < 8:
         return (
-            "⚠️ Tulis gerakan atau adegan Oyen yang lebih jelas.",
+            "⚠️ Tulis adegan Oyen yang lebih jelas.",
             None,
             None,
             "{}",
             None,
             None,
             None,
+            None,
         )
 
-    motion_plan, planner_provider, planner_note = build_motion_plan(clean_prompt, int(duration))
     job = _create_job(
         clean_prompt,
         mode,
@@ -170,10 +141,7 @@ def create_animation_video(
         aspect_ratio,
         int(fps),
         resolution,
-        include_audio,
-        motion_plan,
-        planner_provider,
-        planner_note,
+        bool(include_audio),
     )
     json_text = json.dumps(job, ensure_ascii=False, indent=2)
     job_dir = OUTPUT_DIR / job["job_id"]
@@ -182,29 +150,46 @@ def create_animation_video(
     json_path.write_text(json_text, encoding="utf-8")
 
     try:
-        result = render_job(job, OUTPUT_DIR, timeout=330)
-        video_path = str(result["video"])
-        blend_path = str(result["blend"])
-        log_path = str(result["log"])
-        elapsed = float(result["elapsed_seconds"])
-        size_mb = float(result["video_size_bytes"]) / (1024 * 1024)
-        bone_count = int(result["rig_bone_count"])
-        clip_names = ", ".join(clip["type"] for clip in motion_plan["clips"])
+        result = render_2d_job(job, OUTPUT_DIR, timeout=420)
+        actions = [clip["action"] for clip in job["motion_plan"]["clips"]]
+        warnings = job["motion_plan"].get("warnings", [])
+        warning_text = "\n\n⚠️ " + " | ".join(warnings) if warnings else ""
         status = (
-            f"✅ **Oyen Motion AI V0.5 selesai** — `{job['job_id']}`  \n"
-            f"🧠 Sutradara gerak: **{planner_provider}** • klip: `{clip_names}`  \n"
-            f"🦴 Armature: **{bone_count} tulang** • arah depan: **−Y** • "
-            f"{duration} detik • {fps} FPS • {job['render']['width']}×{job['render']['height']}  \n"
-            f"Render {elapsed:.1f} detik • MP4 {size_mb:.2f} MB • `.blend` berisi motion plan JSON"
+            f"✅ **Oyen Purba 2D V1 selesai — Tahap 1–7 terverifikasi** "
+            f"`{job['job_id']}`  \n"
+            f"🧩 **{result['active_layer_count']} layer aktif** dari "
+            f"**{result['asset_zip_png_count']} PNG committed** • "
+            f"🦴 **{result['bone_count']} bone** • "
+            f"🎬 **{result['action_count']} Action**  \n"
+            f"🧠 Motion Director library-only: `{', '.join(actions)}` • "
+            f"NLA **{result['nla_strip_count']} strip** • "
+            f"QA **{result['qa_frame_count']} frame**  \n"
+            f"🎞️ {duration} detik • {fps} FPS • "
+            f"{job['render']['width']}×{job['render']['height']} • "
+            f"render {float(result['elapsed_seconds']):.1f} detik"
+            f"{warning_text}\n\n"
+            "**Status teknis:** kode, asset pack, rig, Action, NLA, `.blend`, "
+            "contact sheet, dan MP4 lolos. Periksa contact sheet untuk menilai "
+            "kualitas visual sebelum produksi panjang."
         )
-        return status, video_path, video_path, json_text, str(json_path), blend_path, log_path
-    except BlenderRuntimeError as exc:
         return (
-            f"❌ **Render Motion AI gagal**\n\n```text\n{exc}\n```",
+            status,
+            str(result["video"]),
+            str(result["video"]),
+            json_text,
+            str(json_path),
+            str(result["blend"]),
+            str(result["contact_sheet"]),
+            str(result["log"]),
+        )
+    except Oyen2DRuntimeError as exc:
+        return (
+            f"❌ **Pipeline Oyen 2D Tahap 1–7 gagal**\n\n```text\n{exc}\n```",
             None,
             None,
             json_text,
             str(json_path),
+            None,
             None,
             None,
         )
@@ -217,47 +202,54 @@ def create_animation_video(
             str(json_path),
             None,
             None,
+            None,
         )
 
 
-provider_now = available_ai_provider()
-
-with gr.Blocks(title="Oyen Purba Motion AI Studio") as demo:
+with gr.Blocks(title="Oyen Purba 2D Cutout Studio") as demo:
     gr.Markdown(
-        f"""
-# 🐈 Oyen Purba Motion AI Studio
-**Prompt → AI Motion Director → gerakan khusus → Blender armature → MP4 + `.blend`**
+        """
+# 🐈 Oyen Purba 2D Cutout Studio
+**Brand sheet → PNG transparan → pivot → bone cutout → 7 Action → AI Motion Director → QA → MP4 + `.blend`**
 
-**Provider saat Space mulai:** `{provider_now}`
-
-V0.5 tidak lagi memakai animasi jalan yang sama untuk setiap prompt. AI menyusun daftar klip seperti
-`run`, `jump`, `look`, `turn`, `surprised`, `angry`, dan `stop`; Blender lalu menjalankan klip tersebut.
-
-> Arah depan Oyen dikunci ke **−Y**, jadi gerakan maju tidak lagi menyamping.  
-> API key tidak pernah dimasukkan ke file `.blend`; hanya motion plan JSON yang disimpan di dalamnya.
+Versi uji coba ini menjalankan **Tahap 1 sampai Tahap 7** sebagai satu pipeline.
+AI hanya memilih Action resmi; AI tidak boleh membuat kode Blender bebas atau
+mengarang karakter pengganti.
 """
     )
 
     with gr.Row():
         with gr.Column(scale=2):
             prompt_input = gr.Textbox(
-                label="Gerakan atau adegan Oyen Purba",
+                label="Adegan Oyen Purba",
                 placeholder=(
-                    "Oyen berlari cepat mengejar ayam ke depan, berhenti mendadak, "
-                    "lalu menoleh ke kamera dengan wajah kesal."
+                    "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, "
+                    "lalu tersenyum dan mengibaskan ekornya."
                 ),
-                lines=7,
+                lines=6,
             )
             with gr.Row():
-                mode_input = gr.Radio(["3D Blender"], value="3D Blender", label="Mode produksi")
-                style_input = gr.Dropdown(
-                    list(STYLE_PRESETS),
-                    value="Oyen Purba Official",
-                    label="Gaya visual",
+                mode_input = gr.Radio(
+                    ["2D Cutout Blender"],
+                    value="2D Cutout Blender",
+                    label="Mode produksi",
                 )
-            duration_input = gr.Slider(3, 8, value=5, step=1, label="Durasi preview (detik)")
+                style_input = gr.Dropdown(
+                    ["Oyen Purba Brand Sheet"],
+                    value="Oyen Purba Brand Sheet",
+                    label="Aset karakter",
+                )
+            duration_input = gr.Slider(
+                3,
+                8,
+                value=6,
+                step=1,
+                label="Durasi preview (detik)",
+            )
             with gr.Row():
-                aspect_input = gr.Dropdown(["9:16", "16:9", "1:1"], value="9:16", label="Rasio")
+                aspect_input = gr.Dropdown(
+                    ["9:16", "16:9", "1:1"], value="9:16", label="Rasio"
+                )
                 fps_input = gr.Radio([12, 15], value=12, label="FPS")
                 resolution_input = gr.Dropdown(
                     ["360p cepat", "480p"],
@@ -266,43 +258,49 @@ V0.5 tidak lagi memakai animasi jalan yang sama untuk setiap prompt. AI menyusun
                 )
             audio_input = gr.Checkbox(
                 value=False,
-                label="Siapkan metadata audio/dialog (suara belum dirender)",
+                label="Metadata audio/dialog saja (audio belum dirender)",
             )
-            generate_button = gr.Button("🧠 Susun Gerak AI + Render Blender", variant="primary")
+            generate_button = gr.Button(
+                "🧠 Susun Motion 2D + Render Blender", variant="primary"
+            )
 
         with gr.Column(scale=2):
-            status_output = gr.Markdown("Belum ada motion plan yang dirender.")
-            video_output = gr.Video(label="Preview Oyen Purba", autoplay=False)
-            mp4_file = gr.File(label="⬇️ Download Video MP4")
+            status_output = gr.Markdown("Belum ada render 2D.")
+            video_output = gr.Video(label="Preview Oyen Purba 2D", autoplay=False)
+            mp4_file = gr.File(label="⬇️ Video MP4")
 
-    with gr.Accordion("Motion plan dan file produksi Blender", open=False):
-        gr.Markdown(
-            "JSON menampilkan keputusan AI. Di Blender buka **Scripting → Text Editor → "
-            "Oyen_AI_Motion_Plan.json** untuk melihat rencana yang sama."
+    contact_sheet = gr.Image(
+        label="QA Contact Sheet — wajib diperiksa", type="filepath"
+    )
+
+    with gr.Accordion("File produksi dan bukti Tahap 1–7", open=False):
+        json_output = gr.Code(
+            label="animation_job.json + stage audit + motion plan",
+            language="json",
+            lines=20,
         )
-        json_output = gr.Code(label="animation_job.json + motion_plan", language="json", lines=20)
         with gr.Row():
-            json_file = gr.File(label="Download JSON")
-            blend_file = gr.File(label="🦴 Download Rig `.blend`")
-            log_file = gr.File(label="Download log Blender")
+            json_file = gr.File(label="JSON")
+            blend_file = gr.File(label="Rig 2D `.blend`")
+            log_file = gr.File(label="Log Blender")
 
     gr.Examples(
         examples=[
             [
-                "Oyen berlari cepat mengejar ayam ke depan, berhenti mendadak, lalu menoleh ke kamera dengan wajah kesal.",
-                "3D Blender",
-                "Oyen Purba Official",
-                5,
+                "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, lalu tersenyum dan mengibaskan ekornya.",
+                "2D Cutout Blender",
+                "Oyen Purba Brand Sheet",
+                6,
                 "9:16",
                 12,
                 "360p cepat",
                 False,
             ],
             [
-                "Oyen berjalan pelan ke depan, melihat ikan, melompat karena terkejut, lalu mengibaskan ekornya.",
-                "3D Blender",
-                "Oyen Purba Official",
-                6,
+                "Oyen berlari ke kanan, berhenti, menoleh ke kamera dengan wajah kesal.",
+                "2D Cutout Blender",
+                "Oyen Purba Brand Sheet",
+                5,
                 "16:9",
                 12,
                 "360p cepat",
@@ -319,7 +317,7 @@ V0.5 tidak lagi memakai animasi jalan yang sama untuk setiap prompt. AI menyusun
             resolution_input,
             audio_input,
         ],
-        label="Contoh uji Motion AI",
+        label="Contoh uji pipeline 2D",
     )
 
     generate_button.click(
@@ -341,6 +339,7 @@ V0.5 tidak lagi memakai animasi jalan yang sama untuk setiap prompt. AI menyusun
             json_output,
             json_file,
             blend_file,
+            contact_sheet,
             log_file,
         ],
         api_name="render_mp4",

@@ -129,6 +129,7 @@ jobs:
         with:
           name: oyen-v06-validation-proof
           path: |
+            /tmp/oyen-v06-unit.log
             /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_preview.mp4
             /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_preview.blend
             /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_qa_contact_sheet.jpg

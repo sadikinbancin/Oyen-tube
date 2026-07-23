@@ -79,6 +79,62 @@ jobs:
             grep -qx 'libegl1' hf_space/packages.txt
           } 2>&1 | tee /tmp/oyen-v06-unit.log
 
+      - name: Probe Hugging Face hardware permission
+        continue-on-error: true
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -m pip install --quiet "huggingface_hub>=0.34,<2"
+          python - <<'PY' 2>&1 | tee -a /tmp/oyen-v06-unit.log
+          import os
+          import traceback
+          from huggingface_hub import HfApi
+
+          token = os.environ.get("HF_TOKEN", "")
+          print(f"HF_PROBE_TOKEN_PRESENT={bool(token)} length={len(token)}")
+          if not token:
+              raise RuntimeError("HF_TOKEN secret is empty")
+
+          api = HfApi(token=token)
+          try:
+              print("HF_PROBE_WHOAMI=", api.whoami())
+          except Exception as exc:
+              print("HF_PROBE_WHOAMI_ERROR=", type(exc).__name__, str(exc))
+              traceback.print_exc()
+
+          try:
+              runtime = api.get_space_runtime(repo_id="lako123/Belajarh-ani")
+              print(
+                  "HF_PROBE_RUNTIME_BEFORE "
+                  f"stage={runtime.stage} hardware={runtime.hardware} "
+                  f"requested={runtime.requested_hardware}"
+              )
+          except Exception as exc:
+              print("HF_PROBE_RUNTIME_ERROR=", type(exc).__name__, str(exc))
+              traceback.print_exc()
+
+          try:
+              result = api.request_space_hardware(
+                  repo_id="lako123/Belajarh-ani",
+                  hardware="cpu-basic",
+              )
+              print("HF_PROBE_REQUEST_RESULT=", result)
+          except Exception as exc:
+              print("HF_PROBE_REQUEST_ERROR=", type(exc).__name__, str(exc))
+              traceback.print_exc()
+
+          try:
+              runtime = api.get_space_runtime(repo_id="lako123/Belajarh-ani")
+              print(
+                  "HF_PROBE_RUNTIME_AFTER "
+                  f"stage={runtime.stage} hardware={runtime.hardware} "
+                  f"requested={runtime.requested_hardware}"
+              )
+          except Exception as exc:
+              print("HF_PROBE_RUNTIME_AFTER_ERROR=", type(exc).__name__, str(exc))
+              traceback.print_exc()
+          PY
+
       - name: Install Blender quietly
         run: |
           sudo apt-get update -qq >/tmp/oyen-apt.log 2>&1

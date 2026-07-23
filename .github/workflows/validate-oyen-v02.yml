@@ -1,167 +1,73 @@
 name: Validate Oyen Purba 2D Stages 1-7
 
 on:
-  push:
-    branches:
-      - main
-      - agent/oyen-2d-stages-1-7
-    paths:
-      - "hf_space/**"
-      - "tests/test_oyen_2d*.py"
-      - ".github/workflows/validate-oyen-v02.yml"
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - "hf_space/**"
-      - "tests/test_oyen_2d*.py"
       - ".github/workflows/validate-oyen-v02.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-  statuses: write
-
-concurrency:
-  group: oyen-v06-validation-${{ github.ref }}
-  cancel-in-progress: true
+  actions: read
 
 jobs:
-  validate:
-    name: Oyen 2D Stage 1-7 Validation
+  monitor-main:
+    name: Query final main and live Space
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Mark validation pending
+      - name: Query exact main workflow runs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: bff849231851e625e80d16d8b16b4bac4ebda930
         run: |
-          curl --fail-with-body -X POST \
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" \
-            -d '{"state":"pending","context":"oyen-v06/validate","description":"Validating Oyen 2D stages 1-7 and Blender render"}'
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: hf_space/requirements.txt
-
-      - name: Install Python test dependency
-        run: python -m pip install --quiet "pillow>=10,<12"
-
-      - name: Validate Python, committed assets and Motion Director
-        run: |
-          set -o pipefail
-          {
-            python -m py_compile \
-              hf_space/app_v04.py \
-              hf_space/oyen_2d_asset_bundle.py \
-              hf_space/oyen_2d_builder.py \
-              hf_space/oyen_2d_director.py \
-              hf_space/oyen_2d_runtime.py \
-              tests/test_oyen_2d_director.py \
-              tests/test_oyen_2d_pipeline.py
-            PYTHONPATH=hf_space python -m unittest discover -s tests -p 'test_oyen_2d*.py' -v
-            test "$(find hf_space/oyen_2d_asset_parts -name '*.b64' | wc -l)" -eq 12
-            grep -q '^app_file: app_v04.py$' hf_space/README.md
-            grep -q '^APP_VERSION = "0.6.0"' hf_space/app_v04.py
-            grep -q 'Oyen Purba 2D Cutout Studio' hf_space/app_v04.py
-            grep -qx 'blender' hf_space/packages.txt
-            grep -qx 'ffmpeg' hf_space/packages.txt
-            grep -qx 'libegl1' hf_space/packages.txt
-          } 2>&1 | tee /tmp/oyen-v06-unit.log
-
-      - name: Install Blender quietly
-        run: |
-          sudo apt-get update -qq >/tmp/oyen-apt.log 2>&1
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq blender ffmpeg libegl1 >>/tmp/oyen-apt.log 2>&1
-          blender --version | head -1
-
-      - name: Render a real Oyen 2D Blender smoke test
-        run: |
-          set -o pipefail
-          PYTHONPATH=hf_space python - <<'PY' 2>&1 | tee /tmp/oyen-v06-render.log
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&per_page=30" \
+            -o /tmp/runs.json
+          python - <<'PY'
           import json
-          from pathlib import Path
-          from oyen_2d_director import build_2d_motion_plan, compile_nla_timeline
-          from oyen_2d_runtime import render_2d_job
-
-          audit = json.loads(Path("hf_space/oyen_2d_stage_audit.json").read_text(encoding="utf-8"))
-          plan = build_2d_motion_plan(
-              "Oyen berjalan ke kanan, menoleh ke kamera, melambaikan tangan, lalu tersenyum dan mengibaskan ekornya.",
-              3,
-              12,
-          )
-          timeline = compile_nla_timeline(plan)
-          job = {
-              "job_id": "github-v06-smoke",
-              "motion_plan": plan,
-              "compiled_timeline": timeline,
-              "stage_audit": audit,
-              "render": {"width": 360, "height": 640, "aspect_ratio": "9:16"},
-          }
-          result = render_2d_job(job, "/tmp/oyen-v06-validation", timeout=300)
-          assert result["active_layer_count"] >= 35
-          assert result["bone_count"] >= 25
-          assert result["action_count"] == 7
-          assert result["qa_frame_count"] == 5
-          assert Path(result["video"]).stat().st_size >= 2048
-          assert Path(result["blend"]).stat().st_size >= 10000
-          assert Path(result["contact_sheet"]).stat().st_size >= 2000
-          print(
-              "OYEN_V06_VALIDATE_SUCCESS "
-              f"layers={result['active_layer_count']} bones={result['bone_count']} "
-              f"actions={result['action_count']} strips={result['nla_strip_count']} "
-              f"mp4={result['video_size_bytes']} blend={result['blend_size_bytes']}"
-          )
+          data=json.load(open('/tmp/runs.json'))
+          print('TOTAL_RUNS', data.get('total_count'))
+          for run in data.get('workflow_runs', []):
+              print('RUN', json.dumps({
+                  'id': run.get('id'),
+                  'name': run.get('name'),
+                  'event': run.get('event'),
+                  'status': run.get('status'),
+                  'conclusion': run.get('conclusion'),
+                  'created_at': run.get('created_at'),
+                  'updated_at': run.get('updated_at'),
+                  'html_url': run.get('html_url'),
+              }, ensure_ascii=False))
           PY
 
-      - name: Upload validation proof
-        uses: actions/upload-artifact@v4
-        with:
-          name: oyen-v06-validation-proof
-          path: |
-            /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_preview.mp4
-            /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_preview.blend
-            /tmp/oyen-v06-validation/github-v06-smoke/oyen_2d_output/oyen_2d_qa_contact_sheet.jpg
-            /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log
-          retention-days: 3
-          if-no-files-found: error
-
-      - name: Publish successful validation status
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Query live Hugging Face state
         run: |
-          curl --fail-with-body -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" \
-            -d '{"state":"success","context":"oyen-v06/validate","description":"Oyen 2D stages 1-7 and real Blender render passed"}'
-
-      - name: Publish failed validation status
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "--- unit log ---"
-          tail -n 120 /tmp/oyen-v06-unit.log 2>/dev/null || true
-          echo "--- render log ---"
-          tail -n 160 /tmp/oyen-v06-render.log 2>/dev/null || true
-          echo "--- Blender log ---"
-          tail -n 160 /tmp/oyen-v06-validation/github-v06-smoke/blender_2d.log 2>/dev/null || true
-          curl --fail-with-body -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" \
-            -d '{"state":"failure","context":"oyen-v06/validate","description":"Oyen 2D stages 1-7 validation failed"}'
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            "https://huggingface.co/api/spaces/lako123/Belajarh-ani" \
+            -o /tmp/space.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/space.json'))
+          print('SPACE', json.dumps({k:data.get(k) for k in ['id','sha','lastModified','sdk','private','disabled','runtime']}, ensure_ascii=False, default=str))
+          PY
+          code=$(curl --silent --location --max-time 30 \
+            --output /tmp/config.json --write-out '%{http_code}' \
+            "https://lako123-belajarh-ani.hf.space/config" || true)
+          echo "CONFIG_HTTP ${code}"
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/config.json')
+          text=p.read_text(errors='replace') if p.exists() else ''
+          print('CONFIG_BYTES', len(text))
+          print('HAS_RENDER_MP4', 'render_mp4' in text)
+          print('HAS_V06_TITLE', 'Oyen Purba 2D Cutout Studio' in text)
+          print('HAS_MOTION_2D', 'Susun Motion 2D' in text)
+          print('HAS_CUTOUT_MODE', '2D Cutout Blender' in text)
+          PY

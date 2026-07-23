@@ -1,10 +1,10 @@
-name: Validate Oyen Purba 2D Stages 1-7
+name: Monitor Main Oyen V0.6
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/validate-oyen-v02.yml"
+      - ".github/workflows/monitor-main-v06.yml"
   workflow_dispatch:
 
 permissions:
@@ -12,17 +12,17 @@ permissions:
   actions: read
 
 jobs:
-  monitor-main:
-    name: Query final main and live Space
+  monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Query exact main workflow runs
+      - name: Query main workflow runs and live Space
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_SHA: bff849231851e625e80d16d8b16b4bac4ebda930
         run: |
           set -euo pipefail
+          echo "=== GitHub workflow runs for ${TARGET_SHA} ==="
           curl --fail-with-body --silent --show-error \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -32,9 +32,9 @@ jobs:
           python - <<'PY'
           import json
           data=json.load(open('/tmp/runs.json'))
-          print('TOTAL_RUNS', data.get('total_count'))
+          print('total_count=', data.get('total_count'))
           for run in data.get('workflow_runs', []):
-              print('RUN', json.dumps({
+              print(json.dumps({
                   'id': run.get('id'),
                   'name': run.get('name'),
                   'event': run.get('event'),
@@ -46,28 +46,32 @@ jobs:
               }, ensure_ascii=False))
           PY
 
-      - name: Query live Hugging Face state
-        run: |
-          set -euo pipefail
+          echo "=== Hugging Face Space API ==="
           curl --fail-with-body --silent --show-error \
             "https://huggingface.co/api/spaces/lako123/Belajarh-ani" \
-            -o /tmp/space.json
+            -o /tmp/space.json || true
           python - <<'PY'
-          import json
-          data=json.load(open('/tmp/space.json'))
-          print('SPACE', json.dumps({k:data.get(k) for k in ['id','sha','lastModified','sdk','private','disabled','runtime']}, ensure_ascii=False, default=str))
+          import json, pathlib
+          p=pathlib.Path('/tmp/space.json')
+          if p.exists():
+              data=json.load(p.open())
+              print(json.dumps({k:data.get(k) for k in ['id','sha','lastModified','sdk','private','disabled','runtime']}, ensure_ascii=False, default=str))
           PY
+
+          echo "=== Live Gradio config ==="
           code=$(curl --silent --location --max-time 30 \
             --output /tmp/config.json --write-out '%{http_code}' \
             "https://lako123-belajarh-ani.hf.space/config" || true)
-          echo "CONFIG_HTTP ${code}"
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('/tmp/config.json')
-          text=p.read_text(errors='replace') if p.exists() else ''
-          print('CONFIG_BYTES', len(text))
-          print('HAS_RENDER_MP4', 'render_mp4' in text)
-          print('HAS_V06_TITLE', 'Oyen Purba 2D Cutout Studio' in text)
-          print('HAS_MOTION_2D', 'Susun Motion 2D' in text)
-          print('HAS_CUTOUT_MODE', '2D Cutout Blender' in text)
+          echo "HTTP=${code}"
+          if [ -f /tmp/config.json ]; then
+            python - <<'PY'
+          import pathlib
+          text=pathlib.Path('/tmp/config.json').read_text(errors='replace')
+          print('bytes=', len(text))
+          print('has_render_mp4=', 'render_mp4' in text)
+          print('has_v06_title=', 'Oyen Purba 2D Cutout Studio' in text)
+          print('has_motion_2d=', 'Susun Motion 2D' in text)
+          print('has_cutout_mode=', '2D Cutout Blender' in text)
+          print(text[:2000])
           PY
+          fi

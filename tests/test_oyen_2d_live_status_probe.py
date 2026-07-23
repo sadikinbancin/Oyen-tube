@@ -8,7 +8,7 @@ import urllib.request
 from typing import Any
 
 
-MAIN_SHA = "495c8c06acba13e338153eac668344d63edb5838"
+MAIN_SHA = "2b974409af2af867a4f80ae3f5780aae133026fe"
 REPO = "sadikinbancin/Oyen-tube"
 SPACE_REPO = "lako123/Belajarh-ani"
 SPACE_BASE = "https://lako123-belajarh-ani.hf.space"

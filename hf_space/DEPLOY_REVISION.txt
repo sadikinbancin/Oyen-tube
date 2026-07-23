@@ -1,0 +1,2 @@
+Oyen Purba 2D V0.6 final validation/deployment revision.
+Purpose: trigger independent main validation and verified Hugging Face live render after concurrency repair.
